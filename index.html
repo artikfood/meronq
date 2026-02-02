@@ -2034,6 +2034,73 @@ function toggleTheme() {
 }
 
 /* ============================================
+   ОТПРАВКА ЗАКАЗА В СИСТЕМУ
+============================================ */
+
+async function sendOrderToSystem() {
+  // Собираем данные из полей ввода
+  const name = document.getElementById('name').value;
+  const phone = document.getElementById('phone').value;
+  const address = document.getElementById('address').value;
+  const district = document.getElementById('district').value;
+  const payment = document.getElementById('payment').value;
+  const comment = document.getElementById('comment').value;
+
+  // Проверка на заполнение
+  if (!name || !phone || !address) {
+    alert("Пожалуйста, заполните Имя, Телефон и Адрес");
+    return;
+  }
+
+  // Подготовка данных для отправки
+  const orderData = {
+    name: name,
+    phone: phone,
+    address: `${district}, ${address}`,
+    payment: payment,
+    comment: comment,
+    total: document.getElementById('grand-total').innerText,
+    carts: carts // Наш объект с товарами по магазинам
+  };
+
+  const btn = document.querySelector('.checkout-btn');
+  const originalText = btn.innerText;
+  
+  // Визуальный эффект загрузки
+  btn.disabled = true;
+  btn.innerText = "Отправка...";
+
+  try {
+    const response = await fetch('https://meronq.edulik844.workers.dev', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(orderData)
+    });
+
+    if (response.ok) {
+      alert("✅ Заказ успешно отправлен! Ожидайте уведомления в Telegram.");
+      // Очистка корзины после успеха
+      carts = {
+        danielyan: {}, million: {}, edem: {}, mush: {},
+        tonoyan: {}, tonoyans_sity: {}, hay_grill: {}
+      };
+      saveCarts();
+      renderCarts();
+      closeCheckout();
+      goHome();
+    } else {
+      alert("❌ Ошибка при отправке. Попробуйте еще раз.");
+    }
+  } catch (error) {
+    console.error(error);
+    alert("❌ Ошибка связи с сервером. Проверьте интернет.");
+  } finally {
+    btn.disabled = false;
+    btn.innerText = originalText;
+  }
+}
+
+/* ============================================
    ИНИЦИАЛИЗАЦИЯ
 ============================================ */
 
