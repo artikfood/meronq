@@ -667,7 +667,7 @@
 ============================================ */
 
 // Настройки подключения
-const WORKER_URL = "https://ВАШ-ВОРКЕР.workers.dev/orders"; 
+const WORKER_URL = "https://meronq.edulik844.workers.dev/orders"; 
 const API_KEY = "artikfood_Secret_2026!"; 
 
 let storesData = {}; // Сюда загрузятся данные из CSV
@@ -1386,26 +1386,32 @@ document.getElementById('district').addEventListener('change', renderGlobalCart)
    TELEGRAM WORKER
 ============================================ */
 
-const WORKER_URL = "https://artikfood-dispatcher.edulik844.workers.dev/orders";
-const API_KEY = "artikfood_Secret_2026!";
+const WORKER_URL = "https://meronq.edulik844.workers.dev";
 
-async function sendOrderToWorker(payload) {
-  try {
+async function completeOrder() {
+    // Собираем данные из полей ввода
+    const orderData = {
+        name: document.getElementById('name').value,
+        phone: document.getElementById('phone').value,
+        address: document.getElementById('address').value,
+        payment: document.getElementById('payment').value,
+        carts: carts, // ваш объект с товарами (убедитесь, что ключи совпадают: danielyan, edem и т.д.)
+        total: document.getElementById('grand-total').innerText
+    };
+
+    // Отправляем на Cloudflare
     const response = await fetch(WORKER_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": API_KEY
-      },
-      body: JSON.stringify(payload)
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderData)
     });
-    
-    if (!response.ok) {
-      console.error("Worker response error:", response.status);
+
+    if (response.ok) {
+        alert("Заказ успешно отправлен!");
+        // Очистить корзину и закрыть окно
+    } else {
+        alert("Ошибка при отправке");
     }
-  } catch (e) {
-    console.error("Worker error:", e);
-  }
 }
 
 // Получить список магазинов из корзины
