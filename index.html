@@ -2017,28 +2017,26 @@ function toggleTheme() {
 }
 
 /* ============================================
-   ОТПРАВКА ЗАКАЗА В СИСТЕМУ
+   ОТПРАВКА ЗАКАЗА
 ============================================ */
-
 async function sendOrder() {
-  // 1. Собираем данные из твоих полей формы
-  const name = document.getElementById('name')?.value || "";
-  const phone = document.getElementById('phone')?.value || "";
-  const address = document.getElementById('address')?.value || "";
-  const district = document.getElementById('district')?.value || "Артик";
-  const payment = document.getElementById('payment')?.value || "Наличные";
-  const comment = document.getElementById('comment')?.value || "";
+  const name = document.getElementById('name')?.value.trim();
+  const phone = document.getElementById('phone')?.value.trim();
+  const address = document.getElementById('address')?.value.trim();
+  const district = document.getElementById('district')?.value;
+  const payment = document.getElementById('payment')?.value;
+  const comment = document.getElementById('comment')?.value.trim();
 
   if (!name || !phone || !address) {
-    alert("Пожалуйста, заполните обязательные поля: Имя, Телефон и Адрес.");
+    alert("Пожалуйста, заполните Имя, Телефон и Адрес");
     return;
   }
 
-  // 2. Собираем массив продуктов для Воркера (используем carts и qty)
-  const productsArray = [];
-  for (const sKey in carts) {
-    for (const pName in carts[sKey]) {
-      const item = carts[sKey][pName];
+  // Собираем товары для Воркера
+  let productsArray = [];
+  for (let sKey in carts) {
+    for (let pName in carts[sKey]) {
+      let item = carts[sKey][pName];
       if (item.qty > 0) {
         productsArray.push({
           storeKey: sKey,
@@ -2051,14 +2049,13 @@ async function sendOrder() {
   }
 
   if (productsArray.length === 0) {
-    alert("Ваша корзина пуста!");
+    alert("Корзина пуста");
     return;
   }
 
   const orderData = {
     name, phone, address, district, payment, comment,
-    carts: carts, // Твоя оригинальная корзина
-    products: productsArray // Данные для уведомлений
+    products: productsArray
   };
 
   const btn = document.querySelector('.checkout-btn');
@@ -2081,40 +2078,33 @@ async function sendOrder() {
 
     if (response.ok) {
       alert(`✅ Заказ №${result.id ? result.id.slice(-6) : 'OK'} успешно отправлен!`);
-      
-      // 3. Очистка (Твои оригинальные функции)
-      for (let k in carts) { carts[k] = {}; }
+      // Очистка
+      for (let k in carts) carts[k] = {};
       if (typeof saveCarts === 'function') saveCarts();
       if (typeof renderCarts === 'function') renderCarts();
-      if (typeof renderGlobalCart === 'function') renderGlobalCart();
       if (typeof closeCheckout === 'function') closeCheckout();
-      
-      // Возврат на главную
       if (typeof goHome === 'function') goHome();
-      else if (typeof showPage === 'function') showPage('main');
-      
-      window.scrollTo(0, 0);
     } else {
       alert("❌ Ошибка: " + (result.error || "Не удалось отправить заказ"));
     }
   } catch (error) {
     console.error(error);
-    alert("❌ Ошибка связи с сервером. Проверьте подключение.");
+    alert("❌ Ошибка связи с сервером.");
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerText = "ПОДТВЕРДИТЬ ЗАКАЗ";
+      btn.innerText = "Подтвердить заказ";
     }
   }
 }
-        
+
 /* ============================================
    ИНИЦИАЛИЗАЦИЯ
 ============================================ */
-
-renderShops();
-renderGlobalCart();
+window.onload = function() {
+  if (typeof renderShops === 'function') renderShops();
+  if (typeof renderGlobalCart === 'function') renderGlobalCart();
+};
 </script>
-
 </body>
 </html>
