@@ -1,3 +1,7 @@
+// === Worker sync ===
+const WORKER_URL = "https://meronq.edulik844.workers.dev";
+const API_KEY = "meronq_Secret_2026!";
+let orderStatusTimer = null;
 /* =========================================================
    НАСТРОЙКИ
 ========================================================= */
