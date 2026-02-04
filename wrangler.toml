@@ -6,5 +6,11 @@ compatibility_date = "2024-01-01"
 binding = "ORDERS_KV"
 id = "4ab4aa6aec0c46ce8664ad6381d30b89"
 
+[vars]
+API_KEY = "meronq_Secret_2026!"
+ADMIN_CHAT_ID = "-1003454266368"
+COURIERS_CHAT_ID = "-5082321386"
+STORE_CHAT_MAP_JSON = '{"admin":"-1003454266368","courier":"-5082321386","danielyan":"-5162168772","edem":"-1003782123005","million":"-5237106191","mush":"-5273013143","tonoyan":"-5236058643","tonoyans_sity":"-5236058643","hay_grill":"-5106855256","haygrill":"-5106855256"}'
+
 [env.production]
 name = "meronq"
