@@ -666,58 +666,126 @@
    СЕРДЦЕ ПРИЛОЖЕНИЯ (ЛОГИКА + ОТПРАВКА)
 ============================================ */
 
-// Настройки подключения
-const WORKER_URL = "https://meronq.edulik844.workers.dev/orders"; 
-const API_KEY = "meronq_Secret_2026!"; 
+<script>
+  // Настройки подключения
+  const WORKER_URL = "https://meronq.edulik844.workers.dev/orders";
+  const API_KEY = "meronq_Secret_2026!"; 
 
-// storesData объявлен ниже с реальными данными
-let currentCart = {}; // { storeId: { productName: {qty, price} } }
+  // Твой объект имен магазинов (сохраняем)
+  const storeNames = {
+    danielyan: "Danielyan", million: "Million", edem: "Edem", 
+    mush: "Mush", tonoyan: "Tonoyan", tonoyans_sity: "Tonoyan's City", 
+    hay_grill: "Hay Grill"
+  };
 
-// 1. Загрузка меню из CSV
-async function loadMenu(storeId) {
-  // Теперь путь строится сам: stores/hay_grill/menu.csv или stores/million/menu.csv
-  const CSV_URL = `stores/${storeId}/menu.csv`; 
-  
-  try {
-    const response = await fetch(CSV_URL);
-    const text = await response.text();
+  // ДИНАМИЧЕСКАЯ ЗАГРУЗКА МЕНЮ (Двигатель)
+  async function openStore(storeKey) {
+    currentStore = storeKey;
     
-    // Разбиваем на строки. Если в файле нет заголовков, используй .slice(0)
-    const rows = text.split('\n');
-
-    const menuData = {
-      categories: {}
-    };
-
-    rows.forEach(row => {
-      // Твоя крутая регулярка для разделения запятых (оставляем её!)
-      const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-      if (cols.length < 3) return;
-
-      // Твой CSV: Категория(0), Описание(1), Название(2), Пусто(3), Цена(4)
-      const category = cols[0].trim().replace(/^"|"$/g, '');
-      const itemName = cols[2].trim().replace(/^"|"$/g, '');
-      const itemDesc = cols[1] ? cols[1].trim().replace(/^"|"$/g, '') : "";
-      const price = cols[4] ? cols[4].trim().replace(/^"|"$/g, '') : "0";
-
-      if (!menuData.categories[category]) {
-        menuData.categories[category] = [];
-      }
-      
-      menuData.categories[category].push({
-        name: itemName,
-        description: itemDesc,
-        price: price, // оставляем строкой, так как там бывают дробные цены 950/1250
-        image: `stores/${storeId}/images/${itemName}.jpg` // Путь к фото
-      });
-    });
-
-    renderMenu(menuData); // Вызываем функцию отрисовки (создадим её ниже)
+    // Показываем твой оверлей
+    const overlay = document.getElementById('store-overlay');
+    if (overlay) overlay.classList.add('active');
     
-  } catch (error) {
-    console.error("Ошибка загрузки файла:", error);
-  }
+    document.getElementById('overlay-title').innerText = storeNames[storeKey] || "Меню";
+    document.body.style.overflow = 'hidden';
+
+    const container = document.getElementById('product-container');
+    container.innerHTML = `<div style="text-align:center; padding:50px; color:var(--accent-gold); font-family:'Playfair Display', serif;">Загрузка вкусного меню...</div>`;
+
+    try {
+        // Загружаем CSV
+        const response = await fetch(`stores/${storeKey}/menu.csv`);
+        if (!response.ok) throw new Error('Файл не найден');
+        
+        const text = await response.text();
+        // Разбиваем на строки и убираем пустые
+        const rows = text.split('\n').filter(row => row.trim().length > 5);
+        
+        container.innerHTML = ""; // Очистка перед отрисовкой
+
+        rows.forEach((row) => {
+            // Разделяем колонки (учитывая запятые внутри кавычек)
+            const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+            if (cols.length < 5) return;
+
+            const category = cols[0].replace(/"/g, '').trim();
+            const desc = cols[1].replace(/"/g, '').trim();
+            const pName = cols[2].replace(/"/g, '').trim();
+            // Вытягиваем цену: берем первое число до слеша (если цена 1000/1500, возьмет 1000)
+            const price = parseInt(cols[4].split('/')[0].replace(/\D/g, '')) || 0;
+
+            // Проверяем, есть ли уже этот товар в корзине (чтобы число под кнопками было верным)
+            const qty = (carts[storeKey] && carts[storeKey][pName]) ? carts[storeKey][pName].qty : 0;
+            
+            // СОЗДАЕМ КАРТОЧКУ (ТВОЯ РОДНАЯ ВЕРСТКА)
+            const productDiv = document.createElement('div');
+            productDiv.className = 'product-card'; // Твой класс из CSS
+            productDiv.innerHTML = `
+                <img src="stores/${storeKey}/images/${pName}.jpg" class="product-img" onerror="this.src='https://via.placeholder.com/150?text=Food'">
+                <div class="product-info">
+                    <div class="product-category">${category}</div>
+                    <h4 class="product-title">${pName}</h4>
+                    <p class="product-desc">${desc}</p>
+                    <div class="product-footer">
+                        <span class="product-price">${price} AMD</span>
+                        <div class="qty-control">
+                            <button class="qty-btn" onclick="updateQty('${storeKey}', '${pName}', ${price}, -1)">-</button>
+                            <span class="qty-number">${qty}</span>
+                            <button class="qty-btn" onclick="updateQty('${storeKey}', '${pName}', ${price}, 1)">+</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(productDiv);
+        });
+
+    } catch (error) {
+        console.error("Ошибка загрузки:", error);
+        container.innerHTML = `
+            <div style="text-align:center; padding:50px;">
+                <p>Меню для магазина <b>${storeNames[storeKey]}</b> пока не загружено.</p>
+                <p style="font-size:12px; color:var(--text-muted);">Проверьте наличие файла stores/${storeKey}/menu.csv</p>
+            </div>`;
+    }
 }
+
+  // Исправленная функция отправки (для твоего Воркера)
+  async function sendOrder() {
+    const name = document.getElementById('name').value;
+    const phone = document.getElementById('phone').value;
+    const address = document.getElementById('address').value;
+    if(!name || !phone || !address) return alert("Заполните данные!");
+
+    // Собираем товары из твоей корзины
+    let productsArray = [];
+    for (let s in carts) {
+      for (let p in carts[s]) {
+        productsArray.push({ storeKey: s, name: p, quantity: carts[s][p].qty, unitPrice: carts[s][p].price });
+      }
+    }
+
+    try {
+      const response = await fetch(WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+        body: JSON.stringify({
+          name, phone, address, 
+          district: document.getElementById('district').value,
+          payment: document.getElementById('payment').value,
+          comment: document.getElementById('comment').value,
+          products: productsArray,
+          carts: carts
+        })
+      });
+      if (response.ok) {
+        alert("Заказ принят!");
+        location.reload();
+      }
+    } catch (e) { alert("Ошибка сети"); }
+  }
+
+  // ... (остальные твои функции renderCarts, toggleTheme и т.д. без изменений)
+</script>
   
 // 2. Функция отправки заказа (ОСНОВНАЯ)
 async function sendOrder() {
