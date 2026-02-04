@@ -2056,66 +2056,79 @@ function toggleTheme() {
    ОТПРАВКА ЗАКАЗА В СИСТЕМУ
 ============================================ */
 
-async function sendOrderToSystem() {
-  // Собираем данные из полей ввода
-  const name = document.getElementById('name').value;
-  const phone = document.getElementById('phone').value;
-  const address = document.getElementById('address').value;
-  const district = document.getElementById('district').value;
-  const payment = document.getElementById('payment').value;
-  const comment = document.getElementById('comment').value;
+async function submitOrder() {
+  const name = document.getElementById('cust-name').value.trim();
+  const phone = document.getElementById('cust-phone').value.trim();
+  const district = document.getElementById('cust-district').value; // Берем район
+  const address = document.getElementById('cust-address').value.trim();
+  const payment = document.querySelector('input[name="payment"]:checked')?.value;
+  const comment = document.getElementById('cust-comment').value.trim();
 
-  // Проверка на заполнение
   if (!name || !phone || !address) {
-    alert("Пожалуйста, заполните Имя, Телефон и Адрес");
+    alert("Пожалуйста, заполните имя, телефон и адрес.");
     return;
   }
 
-  // Подготовка данных для отправки
+  // Собираем массив продуктов для Воркера, чтобы магазины видели цены
+  const productsArray = [];
+  for (const sKey in carts) {
+    for (const pName in carts[sKey]) {
+      const item = carts[sKey][pName];
+      if (item.count > 0) {
+        productsArray.push({
+          storeKey: sKey,
+          name: pName,
+          quantity: item.count,
+          unitPrice: item.price // Передаем чистую цену (число)
+        });
+      }
+    }
+  }
+
   const orderData = {
     name: name,
     phone: phone,
-    address: `${district}, ${address}`,
+    address: address,
+    district: district, // Передаем район (Артик, Арич и т.д.)
     payment: payment,
     comment: comment,
-    total: document.getElementById('grand-total').innerText,
-    carts: carts // Наш объект с товарами по магазинам
+    carts: carts,
+    products: productsArray // Это поле нужно для уведомлений магазинам
   };
 
   const btn = document.querySelector('.checkout-btn');
-  const originalText = btn.innerText;
-  
-  // Визуальный эффект загрузки
   btn.disabled = true;
   btn.innerText = "Отправка...";
 
   try {
-    const response = await fetch('https://meronq.edulik844.workers.dev', {
+    const response = await fetch('https://meronq.edulik844.workers.dev/orders', { // Добавили /orders в конец
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-api-key': 'ТВОЙ_API_KEY_ИЗ_НАСТРОЕК_ВОРКЕРА' // ОБЯЗАТЕЛЬНО ВСТАВЬ СВОЙ КЛЮЧ
+      },
       body: JSON.stringify(orderData)
     });
 
+    const result = await response.json();
+
     if (response.ok) {
-      alert("✅ Заказ успешно отправлен! Ожидайте уведомления в Telegram.");
-      // Очистка корзины после успеха
-      carts = {
-        danielyan: {}, million: {}, edem: {}, mush: {},
-        tonoyan: {}, tonoyans_sity: {}, hay_grill: {}
-      };
+      alert(`✅ Заказ №${result.id.slice(-6)} успешно отправлен!`);
+      // Очистка корзины
+      for (let k in carts) carts[k] = {};
       saveCarts();
       renderCarts();
       closeCheckout();
       goHome();
     } else {
-      alert("❌ Ошибка при отправке. Попробуйте еще раз.");
+      alert("❌ Ошибка: " + (result.error || "Не удалось отправить заказ"));
     }
   } catch (error) {
     console.error(error);
-    alert("❌ Ошибка связи с сервером. Проверьте интернет.");
+    alert("❌ Ошибка связи с сервером.");
   } finally {
     btn.disabled = false;
-    btn.innerText = originalText;
+    btn.innerText = "Подтвердить заказ";
   }
 }
 
