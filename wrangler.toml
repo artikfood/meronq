@@ -4,7 +4,7 @@ compatibility_date = "2024-01-01"
 
 [[kv_namespaces]]
 binding = "ORDERS_KV"
-id = "YOUR_KV_NAMESPACE_ID"
+id = "4ab4aa6aec0c46ce8664ad6381d30b89"
 
 [env.production]
 name = "meronq"
