@@ -674,33 +674,51 @@ const API_KEY = "meronq_Secret_2026!";
 let currentCart = {}; // { storeId: { productName: {qty, price} } }
 
 // 1. Загрузка меню из CSV
-async function loadExternalMenu() {
-  const CSV_URL = "ССЫЛКА_НА_ВАШ_CSV_ИЗ_ГУГЛ_ТАБЛИЦ";
+async function loadMenu(storeId) {
+  // Теперь путь строится сам: stores/hay_grill/menu.csv или stores/million/menu.csv
+  const CSV_URL = `stores/${storeId}/menu.csv`; 
+  
   try {
     const response = await fetch(CSV_URL);
     const text = await response.text();
-    const rows = text.split('\n').slice(1);
+    
+    // Разбиваем на строки. Если в файле нет заголовков, используй .slice(0)
+    const rows = text.split('\n');
 
-    const newStores = {};
+    const menuData = {
+      categories: {}
+    };
+
     rows.forEach(row => {
+      // Твоя крутая регулярка для разделения запятых (оставляем её!)
       const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-      if (cols.length < 5) return;
-      const [id, name, cat, item, price, logo] = cols.map(c => c.trim().replace(/^"|"$/g, ''));
+      if (cols.length < 3) return;
 
-      if (!newStores[id]) {
-        newStores[id] = { name: name, logo: logo, products: [] };
+      // Твой CSV: Категория(0), Описание(1), Название(2), Пусто(3), Цена(4)
+      const category = cols[0].trim().replace(/^"|"$/g, '');
+      const itemName = cols[2].trim().replace(/^"|"$/g, '');
+      const itemDesc = cols[1] ? cols[1].trim().replace(/^"|"$/g, '') : "";
+      const price = cols[4] ? cols[4].trim().replace(/^"|"$/g, '') : "0";
+
+      if (!menuData.categories[category]) {
+        menuData.categories[category] = [];
       }
-      newStores[id].products.push({ name: item, price: parseInt(price), category: cat });
+      
+      menuData.categories[category].push({
+        name: itemName,
+        description: itemDesc,
+        price: price, // оставляем строкой, так как там бывают дробные цены 950/1250
+        image: `stores/${storeId}/images/${itemName}.jpg` // Путь к фото
+      });
     });
 
-    storesData = newStores;
-    renderShops();
-    console.log("Меню обновлено");
-  } catch (e) {
-    console.error("Ошибка загрузки CSV:", e);
+    renderMenu(menuData); // Вызываем функцию отрисовки (создадим её ниже)
+    
+  } catch (error) {
+    console.error("Ошибка загрузки файла:", error);
   }
 }
-
+  
 // 2. Функция отправки заказа (ОСНОВНАЯ)
 async function sendOrder() {
   const name = document.getElementById('name-input').value;
