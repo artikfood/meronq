@@ -856,65 +856,21 @@ const IMAGES_PATH = "https://raw.githubusercontent.com/artikfood/Artik-food/main
    ДАННЫЕ МАГАЗИНОВ
 ============================================ */
 
-const storesData = {
-  hay_grill: {
-    name: "Hay Grill",
-    logo: "images/hay_grill_logo.png",
-    workingHours: {
-      open: "10:00",
-      close: "22:00"
-    },
-    products: [
-      { category: "1. Шаурма", name: "Шаурма", description: "из свинины, свинина, салат, помидоры, огурцы, лук, зелень, картофель фри, 2 вида соуса", price: "950/1250", image: "shawarma.jpg", isPopular: true },
-      { category: "2. Шашлык (Мангал)", name: "Жареная свиная грудинка", description: "Свиная грудинка, лук, зелень, лаваш. 1 кг.", price: "4200", image: "svinaya_grudinka.jpg" },
-      { category: "2. Шашлык (Мангал)", name: "Свиная рулька на гриле", description: "Свиная рулька, лук, зелень, лаваш, 1 кг.", price: "4200", image: "rulka.jpg" },
-      { category: "2. Шашлык (Мангал)", name: "Свиная вырезка на гриле", description: "Свиная вырезка, лук, зелень, лаваш, 1 кг.", price: "3700", image: "vyrezka.jpg", isPopular: true },
-      { category: "2. Шашлык (Мангал)", name: "Куриные шашлычки (крылышки)", description: "Куриные шашлычки, лук, зелень, лаваш, 1 кг.", price: "2700", image: "kurinye_krylyshki.jpg" },
-      { category: "2. Шашлык (Мангал)", name: "Жареная куриная голень", description: "куриная голень, лук, зелень, лаваш 1 кг", price: "2700", image: "golen.jpg" },
-      { category: "2. Шашлык (Мангал)", name: "Свиной икибир", description: "жареная свинина, зелень, лук, белый соус, красный соус", price: "850/950", image: "ikibir.jpg" },
-      { category: "2. Шашлык (Мангал)", name: "Жареный картофель", description: "лук, зелень, лаваш", price: "350", image: "kartofel.jpg" },
-      { category: "2. Шашлык (Мангал)", name: "1 жареный перец чили", description: "", price: "350", image: "perec_chili.jpg" },
-      { category: "3. Кебаб", name: "Кебаб куриная / говядина", description: "", price: "750/900", image: "kebab.jpg" },
-      { category: "4. Закуски / Фастфуд", name: "1 порция картофеля фри", description: "", price: "400", image: "kartofel_fri.jpg" },
-      { category: "4. Закуски / Фастфуд", name: "Пицца пепперони", description: "пепперони, сыр моцарелла, 2 вида соуса", price: "400", image: "picca.jpg" },
-      { category: "4. Закуски / Фастфуд", name: "Куриные наггетсы", description: "1 порция", price: "400", image: "nuggetsy.jpg" },
-      { category: "4. Закуски / Фастфуд", name: "Курица-гриль", description: "Курица-гриль, 2 порции картофеля-гриль, лук, зелень, 2 соуса", price: "2700/3300/3700", image: "kurica_grill.jpg" },
-      { category: "5. Соусы", name: "Белый соус", description: "", price: "200", image: "belyy_sous.jpg" },
-      { category: "5. Соусы", name: "Красный соус", description: "", price: "200", image: "krasnyy_sous.jpg" },
-      { category: "6. Напитки", name: "Апаран томатный сок острый 0,33", description: "", price: "350", image: "aparan_ostryy.jpg" },
-      { category: "6. Напитки", name: "Томатный сок Апаран 0,33", description: "", price: "350", image: "aparan.jpg" },
-      { category: "6. Напитки", name: "Jermuk 0,5", description: "", price: "400", image: "jermuk_05.jpg" },
-      { category: "6. Напитки", name: "Jermuk 0,25", description: "", price: "200", image: "jermuk_025.jpg" },
-      { category: "6. Напитки", name: "Джермук 330 мл", description: "", price: "400", image: "jermuk_033.jpg" },
-      { category: "6. Напитки", name: "Энергетический напиток Boom 450 мл", description: "", price: "400", image: "boom_450.jpg" },
-      { category: "6. Напитки", name: "Boom 250 мл", description: "", price: "300", image: "boom_250.jpg" },
-      { category: "6. Напитки", name: "Coca-Cola 0,5", description: "", price: "450", image: "coca_05.jpg" },
-      { category: "6. Напитки", name: "Фанта 0,5", description: "", price: "450", image: "fanta_05.jpg" },
-      { category: "6. Напитки", name: "Спрайт 0,5", description: "", price: "450", image: "sprite_05.jpg" },
-      { category: "6. Напитки", name: "Coca-Cola 0,25", description: "", price: "300", image: "coca_025.jpg" },
-      { category: "6. Напитки", name: "Фанта 0,25", description: "", price: "300", image: "fanta_025.jpg" },
-      { category: "6. Напитки", name: "Спрайт 0,25", description: "", price: "300", image: "sprite_025.jpg" },
-      { category: "6. Напитки", name: "Хорошо 0,3", description: "", price: "500", image: "horosho.jpg" },
-      { category: "6. Напитки", name: "Bon-aqua 0,5", description: "", price: "300", image: "bonaqua.jpg" },
-      { category: "6. Напитки", name: "ИНТЕГРАЛЬ 0,5", description: "", price: "300", image: "integral.jpg" },
-      { category: "6. Напитки", name: "Тан Апаран 0,5 мл без газа", description: "", price: "350", image: "tan_bez_gaza.jpg" },
-      { category: "6. Напитки", name: "Тан Апаран 0,5 мл с газом", description: "", price: "350", image: "tan_s_gazom.jpg" },
-      { category: "7. Полуфабрикаты", name: "Гриль Pelmeni HAY GRILL - 1 кг", description: "", price: "1800", image: "pelmeni.jpg" },
-      { category: "7. Полуфабрикаты", name: "Киевские котлеты HAY GRILL 1 кг", description: "", price: "2200", image: "kievskie_kotlety.jpg" },
-      { category: "7. Полуфабрикаты", name: "Куриная котлета для гриля 1 кг", description: "", price: "1800", image: "kurinaya_kotleta.jpg" }
-    ]
-  }
+// Теперь список магазинов — это просто ключи. Названия папок на GitHub должны совпадать с ключами!
+const storeNames = {
+    hay_grill: "Hay Grill",
+    million: "Million",
+    danielyan: "Danielyan"
 };
-
 /* ============================================
    ОБРАБОТКА ДАННЫХ
 ============================================ */
 
-function getProductImage(imageName) {
-  if (!imageName) {
-    // Дефолтное изображение (placeholder)
-    return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='%23333'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='40'%3E📦%3C/text%3E%3C/svg%3E";
-  }
+// Помощник для фото
+function getProductImage(pName, storeKey) {
+    if (!pName) return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='%23333'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='40'%3E📦%3C/text%3E%3C/svg%3E";
+    return `stores/${storeKey}/images/${pName}.jpg`;
+}
   return IMAGES_PATH + imageName;
 }
 
