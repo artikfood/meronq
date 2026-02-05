@@ -2,27 +2,17 @@
    НАСТРОЙКИ (ПОД ТВОЙ HTML)
 ========================================================= */
 
-const BASE_PATH = location.pathname.endsWith("/")
-  ? location.pathname
-  : location.pathname.replace(/\/[^/]*$/, "/");
+// Авто-определение базового пути
+const BASE_PATH = window.location.pathname.includes('/meronq/') ? '/meronq/' : '/';
+const STORES_INDEX_URL = BASE_PATH + 'stores/index.json';
 
-const STORES_INDEX_URL = `${BASE_PATH}stores/index.json`;
-const WORKER_URL = "https://meronq.edulik844.workers.dev";
-const API_KEY = "meronq_Secret_2026!"; 
-
-let stores = {};      
-let carts = {};       
-let currentStoreId = null;
-
-// Универсальная функция путей
-function assetUrl(p) {
-  if (!p) return "";
-  const s = String(p);
-  if (/^(https?:)?\/\//.test(s) || s.startsWith("data:")) return s;
-  const clean = s.startsWith("/") ? s.slice(1) : s;
-  return `${BASE_PATH}${clean}`;
+// Функция для формирования правильных ссылок на картинки и CSV
+function getAssetPath(path) {
+    if (!path) return '';
+    if (path.startsWith('http')) return path;
+    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+    return BASE_PATH + cleanPath;
 }
-
 /* =========================================================
    ЗАГРУЗКА МАГАЗИНОВ
 ========================================================= */
