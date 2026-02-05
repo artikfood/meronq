@@ -103,18 +103,24 @@ async function openStore(storeKey) {
 
 function renderProducts(csvText, storeKey) {
   const container = document.getElementById("product-container");
+  if (!container) return;
   container.innerHTML = "";
 
+  // Разбиваем CSV на строки
   const rows = csvText.split("\n").filter(r => r.trim().length > 5);
 
   rows.forEach(row => {
+    // Умное разделение запятых (игнорирует запятые внутри кавычек)
     const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
     if (cols.length < 5) return;
 
     const pName = cols[2].replace(/"/g, "").trim();
     const pPrice = parseInt(cols[4].replace(/\D/g, "")) || 0;
+    
+    // Путь к картинке: stores/million/images/Название.jpg
     const pImg = assetUrl(`stores/${storeKey}/images/${pName}.jpg`);
 
+    // Создаем карточку товара
     const card = document.createElement("div");
     card.className = "product-card";
     card.innerHTML = `
@@ -122,7 +128,9 @@ function renderProducts(csvText, storeKey) {
       <div class="product-info">
         <h4 class="product-title">${pName}</h4>
         <p class="product-price">${pPrice} AMD</p>
-        <button class="add-btn" onclick="addToCart('${storeKey}', '${pName}', ${pPrice})">Добавить</button>
+        <button class="add-btn" onclick="changeQty('${storeKey}', '${pName.replace(/'/g, "\\'")}', ${pPrice}, 1)">
+          Добавить
+        </button>
       </div>
     `;
     container.appendChild(card);
