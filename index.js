@@ -153,53 +153,41 @@ function renderShops() {
 /* =========================================================
    МЕНЮ (CSV) + КАТЕГОРИИ
 ========================================================= */
-async function loadStoreMenuCSV(storeKey) {
-  // 1) Пытаемся загрузить "уникальное" имя: stores/<id>/<id>_menu.csv
-  const url = `${BASE_PATH}stores/${storeKey}/${storeKey}_menu.csv`;
-
-  const r = await fetch(url, { cache: "no-store" });
-
-  // 2) Если файла нет — НЕ ошибка, возвращаем пустой список
-  if (r.status === 404) {
-    console.warn(`Меню отсутствует: ${url}`);
-    return [];
+async function loadStoreMenuCSV(store) {
+  if (!store.menu) {
+    return { ok: false, items: [] };
   }
 
-  // Любая другая ошибка — показываем в консоли, но тоже не валим сайт
-  if (!r.ok) {
-    console.warn(`Не удалось загрузить меню (${r.status}): ${url}`);
-    return [];
+  const url = assetUrl(store.menu);
+
+  try {
+    const r = await fetch(url, { cache: "no-store" });
+    if (!r.ok) {
+      return { ok: false, items: [] };
+    }
+
+    const text = await r.text();
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+    const rows = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (i === 0 && /category/i.test(lines[i])) continue;
+
+      const parts = lines[i].split(",").map(x => x.trim());
+      if (parts.length < 3) continue;
+
+      rows.push({
+        category: parts[0],
+        name: parts[1],
+        price: Number(parts[2]) || 0
+      });
+    }
+
+    return { ok: true, items: rows };
+
+  } catch {
+    return { ok: false, items: [] };
   }
-
-  const text = await r.text();
-
-  // CSV формат:
-  // category,name,price
-  // Напитки,Cola 1L,600
-  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  const rows = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (i === 0 && /category/i.test(line) && /name/i.test(line)) continue;
-
-    const parts = line.split(",").map(x => x.trim());
-    if (parts.length < 3) continue;
-
-    const category = parts[0];
-    const name = parts[1];
-    const price = Number(parts[2]) || 0;
-
-    rows.push({
-      category,
-      name,
-      price,
-      // фото опционально (если нет — просто скрывается)
-      photo: `${BASE_PATH}stores/${storeKey}/images/${encodeURIComponent(name)}.jpg`,
-    });
-  }
-
-  return rows;
 }
 
 
