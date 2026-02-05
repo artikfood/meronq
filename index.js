@@ -69,9 +69,13 @@ async function loadStores() {
     if (!container) return;
     container.innerHTML = "";
 
-    data.stores.forEach(s => {
+data.stores.forEach(s => {
       if (!s.enabled) return;
       stores[s.id] = s;
+      
+      // Безопасное получение часов работы
+      const openTime = s.workingHours ? s.workingHours.open : "00:00";
+      const closeTime = s.workingHours ? s.workingHours.close : "00:00";
       
       const div = document.createElement("div");
       div.className = "shop-card";
@@ -80,7 +84,7 @@ async function loadStores() {
         <img src="${assetUrl(s.logo)}" onerror="this.src='https://via.placeholder.com/300x150?text=No+Logo'">
         <div class="shop-card-content">
           <h3>${s.name}</h3>
-          <p>🕙 ${s.workingHours.open} - ${s.workingHours.close}</p>
+          <p>🕙 ${openTime} - ${closeTime}</p>
         </div>
       `;
       container.appendChild(div);
