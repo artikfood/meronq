@@ -218,9 +218,18 @@ async function openStore(storeId) {
 
   // load menu
   try {
-    currentMenu = await loadStoreMenuCSV(storeId);
-    currentCats = buildCategories(currentMenu);
-    renderCategories(storeId);
+    const result = await loadStoreMenuCSV(store);
+
+if (!result.ok || result.items.length === 0) {
+  document.getElementById("store-products").innerHTML =
+    `<div class="loading">❌ Меню временно недоступно</div>`;
+  return;
+}
+
+currentMenu = result.items;
+currentCats = buildCategories(currentMenu);
+renderCategories(store.id);
+
   } catch (e) {
     console.error(e);
     document.getElementById("categories-block")?.classList.add("hidden");
