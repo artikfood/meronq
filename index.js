@@ -1,20 +1,26 @@
-// === Worker sync ===
-const WORKER_URL = "https://meronq.edulik844.workers.dev";
-const API_KEY = "meronq_Secret_2026!";
-let orderStatusTimer = null;
 /* =========================================================
    НАСТРОЙКИ
 ========================================================= */
-const STORES_INDEX_URL = "stores/index.json";
 
-// Worker (KV sync)
-const WORKER_BASE_URL = "https://meronq.edulik844.workers.dev"; // <-- твой воркер домен
+// GitHub Pages base path (/meronq/)
+const BASE_PATH = location.pathname.endsWith("/")
+  ? location.pathname
+  : location.pathname.replace(/\/[^/]*$/, "/");
+
+// магазины
+const STORES_INDEX_URL = `${BASE_PATH}stores/index.json`;
+
+// Worker
+const WORKER_BASE_URL = "https://meronq.edulik844.workers.dev";
 const WORKER_ORDERS_PATH = "/orders";
 const WORKER_STATUS_PATH = "/order-status";
-const API_KEY = "meronq_Secret_2026!"; // <-- должен совпадать с env.API_KEY воркера
 
-// WhatsApp номер для клиента (куда отправлять текст клиенту)
+// ключ (для запросов сайта к воркеру)
+const API_KEY = "meronq_Secret_2026!";
+
+// WhatsApp номер для клиента
 const WHATSAPP_NUMBER = "37443797727";
+
 
 // минимальная сумма товаров
 const MIN_ITEMS_TOTAL = 3000;
@@ -134,7 +140,7 @@ async function loadStores() {
 }
 
 async function loadStoreMenuCSV(storeKey) {
-  const url = `stores/${storeKey}/menu.csv`;
+  const url = `${BASE_PATH}stores/${storeKey}/menu.csv`;
   try {
     const r = await fetch(url, { cache: "no-store" });
     if (!r.ok) throw new Error(`Нет menu.csv: ${url}`);
