@@ -154,13 +154,26 @@ function renderShops() {
    МЕНЮ (CSV) + КАТЕГОРИИ
 ========================================================= */
 async function loadStoreMenuCSV(storeKey) {
-  const url = `${BASE_PATH}stores/${storeKey}/menu.csv`;
+  // 1) Пытаемся загрузить "уникальное" имя: stores/<id>/<id>_menu.csv
+  const url = `${BASE_PATH}stores/${storeKey}/${storeKey}_menu.csv`;
+
   const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error(`Не удалось загрузить меню: ${url}`);
+
+  // 2) Если файла нет — НЕ ошибка, возвращаем пустой список
+  if (r.status === 404) {
+    console.warn(`Меню отсутствует: ${url}`);
+    return [];
+  }
+
+  // Любая другая ошибка — показываем в консоли, но тоже не валим сайт
+  if (!r.ok) {
+    console.warn(`Не удалось загрузить меню (${r.status}): ${url}`);
+    return [];
+  }
 
   const text = await r.text();
 
-  // CSV формат ожидается:
+  // CSV формат:
   // category,name,price
   // Напитки,Cola 1L,600
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
@@ -168,7 +181,6 @@ async function loadStoreMenuCSV(storeKey) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    // пропуск заголовка, если есть
     if (i === 0 && /category/i.test(line) && /name/i.test(line)) continue;
 
     const parts = line.split(",").map(x => x.trim());
@@ -182,13 +194,14 @@ async function loadStoreMenuCSV(storeKey) {
       category,
       name,
       price,
-      // фото по желанию (если у тебя есть)
+      // фото опционально (если нет — просто скрывается)
       photo: `${BASE_PATH}stores/${storeKey}/images/${encodeURIComponent(name)}.jpg`,
     });
   }
 
   return rows;
 }
+
 
 function buildCategories(menuRows) {
   const map = new Map();
