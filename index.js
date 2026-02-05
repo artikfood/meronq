@@ -1,6 +1,7 @@
 /* =========================================================
-   НАСТРОЙКИ
+   НАСТРОЙКИ (ПОД ТВОЙ HTML)
 ========================================================= */
+
 const BASE_PATH = location.pathname.endsWith("/")
   ? location.pathname
   : location.pathname.replace(/\/[^/]*$/, "/");
@@ -11,7 +12,9 @@ const API_KEY = "meronq_Secret_2026!";
 
 let stores = {};      
 let carts = {};       
+let currentStoreId = null;
 
+// Универсальная функция путей
 function assetUrl(p) {
   if (!p) return "";
   const s = String(p);
@@ -21,87 +24,88 @@ function assetUrl(p) {
 }
 
 /* =========================================================
-   ЗАГРУЗКА МАГАЗИНОВ (Исправлено)
+   ЗАГРУЗКА МАГАЗИНОВ
 ========================================================= */
-async function loadStores() {
-  try {
-    console.log("Загрузка index.json...");
-    const resp = await fetch(STORES_INDEX_URL);
-    if (!resp.ok) throw new Error(`Ошибка сети: ${resp.status}`);
-    
-    const data = await resp.json();
-    const container = document.getElementById("shops-list");
-    if (!container) return;
-    container.innerHTML = "";
 
-    if (!data.stores || !Array.isArray(data.stores)) {
-      throw new Error("Формат JSON неверен: отсутствует массив stores");
-    }
+async function loadStores() {
+  const container = document.getElementById("hero-shops"); // ID из твоего HTML
+  if (!container) return;
+
+  try {
+    const resp = await fetch(STORES_INDEX_URL);
+    if (!resp.ok) throw new Error("Ошибка загрузки index.json");
+    const data = await resp.json();
+    
+    container.innerHTML = "";
 
     data.stores.forEach(s => {
       if (!s.enabled) return;
       stores[s.id] = s;
       
-      // Защита от undefined в workingHours
-      const open = s.workingHours?.open || "09:00";
-      const close = s.workingHours?.close || "21:00";
+      const card = document.createElement("div");
+      card.className = "shop-card";
+      card.onclick = () => openStore(s.id);
       
-      const div = document.createElement("div");
-      div.className = "shop-card";
-      div.onclick = () => openStore(s.id);
-      div.innerHTML = `
-        <img src="${assetUrl(s.logo)}" onerror="this.src='https://via.placeholder.com/300x150?text=No+Logo'">
+      // Используем структуру из твоего CSS
+      card.innerHTML = `
+        <div class="shop-badge">Premium</div>
+        <img src="${assetUrl(s.logo)}" class="shop-logo" onerror="this.src='https://via.placeholder.com/300x150?text=No+Logo'">
         <div class="shop-card-content">
-          <h3>${s.name}</h3>
-          <p>🕙 ${open} - ${close}</p>
+          <h3 class="shop-title">${s.name}</h3>
+          <div class="shop-info">
+            <span>🕙 ${s.workingHours?.open || "09:00"} - ${s.workingHours?.close || "22:00"}</span>
+          </div>
         </div>
       `;
-      container.appendChild(div);
+      container.appendChild(card);
     });
   } catch (e) {
-    console.error("Критическая ошибка loadStores:", e);
-    document.getElementById("shops-list").innerHTML = `<p style='color:red; padding:20px;'>Ошибка: ${e.message}</p>`;
+    console.error("Ошибка:", e);
+    container.innerHTML = "<p>Не удалось загрузить список магазинов.</p>";
   }
 }
 
 /* =========================================================
-   ЗАГРУЗКА ТОВАРОВ (С префиксами)
+   МЕНЮ И ТОВАРЫ (С ПРЕФИКСАМИ)
 ========================================================= */
-async function loadStoreMenuCSV(storeKey) {
+
+async function openStore(storeKey) {
+  currentStoreId = storeKey;
+  const store = stores[storeKey];
+  
+  const overlay = document.getElementById("store-overlay");
+  const container = document.getElementById("product-container");
+  const title = document.getElementById("overlay-title");
+
+  if (overlay) overlay.style.display = "flex";
+  if (title) title.innerText = store.name;
+  if (container) container.innerHTML = "<div class='loader'>Загрузка меню...</div>";
+
+  // Пытаемся загрузить [storeKey]_menu.csv
   const fileName = `${storeKey}_menu.csv`;
   const url = assetUrl(`stores/${storeKey}/${fileName}`);
   
   try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("CSV не найден");
-    return await response.text();
+    let response = await fetch(url);
+    if (!response.ok) {
+      // Запасной вариант: просто menu.csv
+      response = await fetch(assetUrl(`stores/${storeKey}/menu.csv`));
+    }
+    
+    if (!response.ok) throw new Error("Меню не найдено");
+    const csvText = await response.text();
+    renderProducts(csvText, storeKey);
+    
   } catch (e) {
-    console.warn(`Файл ${fileName} не найден, пробую menu.csv`);
-    try {
-      const fallback = await fetch(assetUrl(`stores/${storeKey}/menu.csv`));
-      return fallback.ok ? await fallback.text() : null;
-    } catch { return null; }
+    container.innerHTML = "<p style='padding:20px;'>Товары временно недоступны.</p>";
   }
 }
 
-async function openStore(storeKey) {
-  const store = stores[storeKey];
-  const overlay = document.getElementById("store-overlay");
-  if (overlay) overlay.style.display = "flex";
-  
-  document.getElementById("overlay-title").innerText = store?.name || "Магазин";
-  
+function renderProducts(csvText, storeKey) {
   const container = document.getElementById("product-container");
-  container.innerHTML = "<div class='loader'>Загружаем продукты...</div>";
-
-  const csvText = await loadStoreMenuCSV(storeKey);
-  if (!csvText) {
-    container.innerHTML = "<p style='padding:20px;'>Товары скоро появятся!</p>";
-    return;
-  }
+  container.innerHTML = "";
 
   const rows = csvText.split("\n").filter(r => r.trim().length > 5);
-  container.innerHTML = "";
 
   rows.forEach(row => {
     const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
@@ -114,17 +118,34 @@ async function openStore(storeKey) {
     const card = document.createElement("div");
     card.className = "product-card";
     card.innerHTML = `
-      <img src="${pImg}" onerror="this.src='https://via.placeholder.com/150?text=No+Photo'">
+      <img src="${pImg}" class="product-img" onerror="this.src='https://via.placeholder.com/150?text=No+Photo'">
       <div class="product-info">
-        <h4>${pName}</h4>
-        <p class="price">${pPrice} AMD</p>
-        <button class="add-btn" onclick="addToCart('${storeKey}', '${pName}', ${pPrice})">В корзину</button>
+        <h4 class="product-title">${pName}</h4>
+        <p class="product-price">${pPrice} AMD</p>
+        <button class="add-btn" onclick="addToCart('${storeKey}', '${pName}', ${pPrice})">Добавить</button>
       </div>
     `;
     container.appendChild(card);
   });
 }
 
-// Запуск при загрузке
-document.addEventListener("DOMContentLoaded", loadStores);
-window.closeStore = () => document.getElementById("store-overlay").style.display = "none";
+/* =========================================================
+   КОРЗИНА И ИНИЦИАЛИЗАЦИЯ
+========================================================= */
+
+function addToCart(sId, name, price) {
+  // Базовая логика корзины
+  alert(`Добавлено: ${name}`);
+}
+
+window.closeStore = () => {
+  document.getElementById("store-overlay").style.display = "none";
+};
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadStores();
+  
+  // Кнопка закрытия оверлея
+  const closeBtn = document.querySelector(".close-overlay");
+  if (closeBtn) closeBtn.onclick = window.closeStore;
+});
