@@ -15,9 +15,6 @@ const WORKER_BASE_URL = "https://meronq.edulik844.workers.dev";
 const WORKER_ORDERS_PATH = "/orders";
 const WORKER_STATUS_PATH = "/order-status";
 
-// ключ (для запросов сайта к воркеру)
-const API_KEY = "meronq_Secret_2026!";
-
 // WhatsApp номер для клиента
 const WHATSAPP_NUMBER = "37443797727";
 
