@@ -4,15 +4,15 @@
       "id": "hay_grill",
       "name": "Hay Grill",
       "logo": "stores/hay_grill/logo.png",
-      "enabled": true,
-      "workingHours": { "open": "10:00", "close": "22:00" }
+      "menu": "stores/hay_grill/hay_grill_menu.csv",
+      "enabled": true
     },
     {
       "id": "million",
       "name": "Million",
       "logo": "stores/million/logo.png",
-      "enabled": true,
-      "workingHours": { "open": "09:00", "close": "23:00" }
+      "menu": "stores/million/million_menu.csv",
+      "enabled": true
     }
   ]
 }
