@@ -2,102 +2,110 @@
    НАСТРОЙКИ (КОНФИГУРАЦИЯ)
 ========================================================= */
 
-// Автоматическое определение базового пути (для GitHub Pages /meronq/)
+// Автоматическое определение пути (для GitHub Pages это /meronq/)
 const BASE_PATH = location.pathname.endsWith("/")
   ? location.pathname
   : location.pathname.replace(/\/[^/]*$/, "/");
 
 const STORES_INDEX_URL = `${BASE_PATH}stores/index.json`;
 const WORKER_URL = "https://meronq.edulik844.workers.dev";
-const API_KEY = "meronq_Secret_2026!"; // Должен совпадать с кодом в Cloudflare
+const API_KEY = "meronq_Secret_2026!"; 
 const MIN_ITEMS_TOTAL = 3000;
 
 /* =========================================================
    ГЛОБАЛЬНЫЕ ДАННЫЕ
 ========================================================= */
-let stores = {};      // Данные о магазинах
-let carts = {};       // Корзины: { storeKey: { productName: {qty, price} } }
+let stores = {};      
+let carts = {};       
 let currentStore = null;
 
 /* =========================================================
-   УТИЛИТЫ
+   УТИЛИТЫ (ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ)
 ========================================================= */
 
-// Функция для формирования правильных путей к файлам
+// Формирует правильный URL для файлов на GitHub
 function assetUrl(p) {
   if (!p) return "";
-  if (p.startsWith("http") || p.startsWith("data:")) return p;
-  const clean = p.startsWith("/") ? p.slice(1) : p;
+  const s = String(p);
+  if (/^(https?:)?\/\//.test(s) || s.startsWith("data:")) return s;
+  const clean = s.startsWith("/") ? s.slice(1) : s;
   return `${BASE_PATH}${clean}`;
 }
 
-// Загрузка CSV и парсинг (с учетом префиксов магазина)
+// Загрузка CSV с учетом префикса магазина (например, million_menu.csv)
 async function loadStoreMenuCSV(storeKey) {
-  // Новая логика: ищем файл вида stores/million/million_menu.csv
-  const fileName = `${storeKey}_menu.csv`;
+  const fileName = `${storeKey}_menu.csv`; // Твоя новая логика
   const url = assetUrl(`stores/${storeKey}/${fileName}`);
   
-  console.log(`[System] Загрузка меню: ${url}`);
+  console.log(`[System] Ищу меню по адресу: ${url}`);
 
   try {
     const response = await fetch(url);
     if (!response.ok) {
-      // Если файл с префиксом не найден, пробуем стандартный menu.csv
-      console.warn(`[System] Файл ${fileName} не найден, пробуем menu.csv`);
+      console.warn(`[System] Файл ${fileName} не найден. Пробую стандартный menu.csv`);
       const fallbackUrl = assetUrl(`stores/${storeKey}/menu.csv`);
       const fallbackRes = await fetch(fallbackUrl);
-      if (!fallbackRes.ok) throw new Error("Файл меню отсутствует");
+      if (!fallbackRes.ok) throw new Error("Файл меню не найден");
       return await fallbackRes.text();
     }
     return await response.text();
   } catch (e) {
-    console.error(`[Error] Ошибка загрузки магазина ${storeKey}:`, e);
+    console.error(`[Error] Не удалось загрузить магазин ${storeKey}:`, e);
     return null;
   }
 }
 
 /* =========================================================
-   ЛОГИКА МАГАЗИНОВ И МЕНЮ
+   ОТОБРАЖЕНИЕ МАГАЗИНОВ И ТОВАРОВ
 ========================================================= */
 
 async function loadStores() {
-  const resp = await fetch(STORES_INDEX_URL);
-  const data = await resp.json();
-  
-  const container = document.getElementById("shops-list");
-  if (!container) return;
-  container.innerHTML = "";
-
-  for (const s of data.stores) {
-    if (!s.enabled) continue;
-    stores[s.id] = s;
+  try {
+    const resp = await fetch(STORES_INDEX_URL);
+    if (!resp.ok) throw new Error("Не удалось загрузить index.json");
+    const data = await resp.json();
     
-    const div = document.createElement("div");
-    div.className = "shop-card";
-    div.onclick = () => openStore(s.id);
-    div.innerHTML = `
-      <img src="${assetUrl(s.logo)}" onerror="this.src='https://via.placeholder.com/300x150?text=No+Logo'">
-      <div class="shop-card-content">
-        <h3>${s.name}</h3>
-        <p>🕙 ${s.workingHours.open} - ${s.workingHours.close}</p>
-      </div>
-    `;
-    container.appendChild(div);
+    const container = document.getElementById("shops-list");
+    if (!container) return;
+    container.innerHTML = "";
+
+    data.stores.forEach(s => {
+      if (!s.enabled) return;
+      stores[s.id] = s;
+      
+      const div = document.createElement("div");
+      div.className = "shop-card";
+      div.onclick = () => openStore(s.id);
+      div.innerHTML = `
+        <img src="${assetUrl(s.logo)}" onerror="this.src='https://via.placeholder.com/300x150?text=No+Logo'">
+        <div class="shop-card-content">
+          <h3>${s.name}</h3>
+          <p>🕙 ${s.workingHours.open} - ${s.workingHours.close}</p>
+        </div>
+      `;
+      container.appendChild(div);
+    });
+  } catch (e) {
+    console.error("Ошибка инициализации магазинов:", e);
   }
 }
 
 async function openStore(storeKey) {
   currentStore = storeKey;
   const store = stores[storeKey];
-  document.getElementById("store-overlay").style.display = "flex";
+  
+  // Показываем оверлей (убедись, что ID совпадает с HTML)
+  const overlay = document.getElementById("store-overlay");
+  if (overlay) overlay.style.display = "flex";
+  
   document.getElementById("overlay-title").innerText = store.name;
   
   const container = document.getElementById("product-container");
-  container.innerHTML = "<div class='loader'>Загрузка товаров...</div>";
+  container.innerHTML = "<div class='loader'>Загружаем продукты...</div>";
 
   const csvText = await loadStoreMenuCSV(storeKey);
   if (!csvText) {
-    container.innerHTML = "<p style='padding:20px;'>Меню временно недоступно</p>";
+    container.innerHTML = "<p style='padding:20px;'>Ошибка: товары не найдены.</p>";
     return;
   }
 
@@ -105,12 +113,13 @@ async function openStore(storeKey) {
   container.innerHTML = "";
 
   rows.forEach(row => {
-    // Умный сплит CSV (учитывает кавычки)
+    // Парсинг CSV с учетом возможных кавычек
     const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
     if (cols.length < 5) return;
 
     const pName = cols[2].replace(/"/g, "").trim();
     const pPrice = parseInt(cols[4].replace(/\D/g, "")) || 0;
+    // Путь к картинке товара: stores/название/images/имя_товара.jpg
     const pImg = assetUrl(`stores/${storeKey}/images/${pName}.jpg`);
 
     const qty = (carts[storeKey] && carts[storeKey][pName]) ? carts[storeKey][pName].qty : 0;
@@ -118,14 +127,14 @@ async function openStore(storeKey) {
     const card = document.createElement("div");
     card.className = "product-card";
     card.innerHTML = `
-      <img src="${pImg}" onerror="this.src='https://via.placeholder.com/150?text=No+Photo'">
+      <img src="${pImg}" onerror="this.src='https://via.placeholder.com/150?text=${encodeURIComponent(pName)}'">
       <div class="product-info">
         <h4>${pName}</h4>
         <p class="price">${pPrice} AMD</p>
         <div class="qty-control">
-          <button onclick="updateQty('${storeKey}', '${pName}', ${pPrice}, -1, this)">-</button>
-          <span class="qty-val">${qty}</span>
-          <button onclick="updateQty('${storeKey}', '${pName}', ${pPrice}, 1, this)">+</button>
+          <button onclick="changeQty('${storeKey}', '${pName}', ${pPrice}, -1)">-</button>
+          <span id="qty-${storeKey}-${pName.replace(/\s+/g, '')}">${qty}</span>
+          <button onclick="changeQty('${storeKey}', '${pName}', ${pPrice}, 1)">+</button>
         </div>
       </div>
     `;
@@ -134,10 +143,10 @@ async function openStore(storeKey) {
 }
 
 /* =========================================================
-   КОРЗИНА И ЗАКАЗ
+   ЛОГИКА КОРЗИНЫ
 ========================================================= */
 
-function updateQty(sId, pName, price, delta, btn) {
+function changeQty(sId, pName, price, delta) {
   if (!carts[sId]) carts[sId] = {};
   if (!carts[sId][pName]) carts[sId][pName] = { qty: 0, price: price };
 
@@ -145,100 +154,101 @@ function updateQty(sId, pName, price, delta, btn) {
 
   if (carts[sId][pName].qty <= 0) {
     delete carts[sId][pName];
+    if (Object.keys(carts[sId]).length === 0) delete carts[sId];
   }
 
-  const qtyEl = btn.parentElement.querySelector(".qty-val");
-  if (qtyEl) qtyEl.innerText = carts[sId][pName]?.qty || 0;
+  // Обновляем число в карточке товара
+  const qtyEl = document.getElementById(`qty-${sId}-${pName.replace(/\s+/g, '')}`);
+  if (qtyEl) qtyEl.innerText = (carts[sId] && carts[sId][pName]) ? carts[sId][pName].qty : 0;
 
+  saveCart();
   updateCartBadge();
-  localStorage.setItem("meronq_carts", JSON.stringify(carts));
+}
+
+function saveCart() {
+  localStorage.setItem("meronq_cart_v2", JSON.stringify(carts));
 }
 
 function updateCartBadge() {
-  let total = 0;
+  let count = 0;
   for (let s in carts) {
-    for (let p in carts[s]) {
-      total += carts[s][p].qty;
-    }
+    for (let p in carts[s]) count += carts[s][p].qty;
   }
   const badge = document.getElementById("cart-badge");
-  if (badge) badge.innerText = total;
+  if (badge) badge.innerText = count;
 }
 
-async function sendOrder() {
-  const name = document.getElementById("order-name")?.value;
-  const phone = document.getElementById("order-phone")?.value;
-  const address = document.getElementById("order-address")?.value;
+/* =========================================================
+   ОТПРАВКА ЗАКАЗА
+========================================================= */
 
-  if (!name || !phone || !address) {
-    alert("Пожалуйста, заполните все поля!");
-    return;
-  }
+async function placeOrder() {
+  const name = document.getElementById("customer-name")?.value;
+  const phone = document.getElementById("customer-phone")?.value;
+  const address = document.getElementById("customer-address")?.value;
+
+  if (!name || !phone || !address) return alert("Заполните данные доставки!");
 
   const products = [];
-  let grandTotal = 0;
+  let total = 0;
 
   for (let sId in carts) {
     for (let pName in carts[sId]) {
-      const item = carts[sId][pName];
+      const it = carts[sId][pName];
       products.push({
         storeKey: sId,
         name: pName,
-        quantity: item.qty,
-        unitPrice: item.price
+        quantity: it.qty,
+        unitPrice: it.price
       });
-      grandTotal += item.qty * item.price;
+      total += it.qty * it.price;
     }
   }
 
-  if (products.length === 0) return alert("Корзина пуста");
+  if (products.length === 0) return alert("Корзина пуста!");
+  if (total < MIN_ITEMS_TOTAL) return alert(`Минимальный заказ — ${MIN_ITEMS_TOTAL} AMD`);
 
   const orderData = {
-    name,
-    phone,
-    address,
+    name, phone, address,
     products,
-    totals: { grandTotal }
+    payment: "Наличные", // Можно добавить выбор в HTML
+    totals: { grandTotal: total }
   };
 
   try {
-    const resp = await fetch(`${WORKER_URL}/orders`, {
+    const res = await fetch(`${WORKER_URL}/orders`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": API_KEY
-      },
+      headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
       body: JSON.stringify(orderData)
     });
 
-    const result = await resp.json();
-
-    if (resp.ok) {
-      // ИСПОЛЬЗУЕМ result.id (как в воркере)
-      alert(`✅ Заказ успешно отправлен! ID: ${result.id.slice(-6)}`);
-      localStorage.removeItem("meronq_carts");
+    const result = await res.json();
+    if (result.ok) {
+      alert(`✅ Заказ №${result.id.slice(-6)} принят!`);
+      carts = {};
+      saveCart();
       location.reload();
     } else {
       alert("Ошибка: " + result.error);
     }
   } catch (e) {
-    alert("Ошибка сети. Проверьте соединение.");
+    alert("Ошибка связи с сервером.");
   }
 }
 
 /* =========================================================
-   СТАРТ
+   ЗАПУСК
 ========================================================= */
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Загрузка корзины из памяти
-  const saved = localStorage.getItem("meronq_carts");
+  const saved = localStorage.getItem("meronq_cart_v2");
   if (saved) carts = JSON.parse(saved);
   
+  // Делаем функции доступными для HTML-кнопок
+  window.changeQty = changeQty;
+  window.placeOrder = placeOrder;
+  window.closeStore = () => document.getElementById("store-overlay").style.display = "none";
+
   updateCartBadge();
   loadStores();
-  
-  // Глобальные функции для HTML кнопок
-  window.closeStore = () => document.getElementById("store-overlay").style.display = "none";
-  window.sendOrder = sendOrder;
 });
