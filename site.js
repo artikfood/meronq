@@ -1,268 +1,214 @@
 /* =========================================================
-   MERONQ / ARTIK FOOD — site.js (FINAL FIXED)
+   MERONQ / ARTIK FOOD — site.js (STABLE ARCHITECTURE)
+   • image slug from CSV
+   • no filename guessing
+   • no кириллицы в путях
 ========================================================= */
 
-const BASE_PATH = window.location.pathname.includes('/meronq/') ? '/meronq/' : '/';
-
-const STORES_INDEX_CANDIDATES = [
-  BASE_PATH + 'stores/index.json',
-  BASE_PATH + 'index.json',
-];
-
+const BASE_PATH = location.pathname.includes("/meronq/") ? "/meronq/" : "/";
+const STORES_INDEX_URL = BASE_PATH + "stores/index.json";
 const WORKER_URL = "https://meronq.edulik844.workers.dev/orders";
 const API_KEY = "meronq_Secret_2026!";
 
 let stores = {};
-let currentCart = {};
+let cart = {};
 
-/* ===================== HELPERS ===================== */
+/* ================= HELPERS ================= */
 
-function assetUrl(path) {
-  if (!path) return '';
-  if (path.startsWith('http')) return path;
-  const clean = path.startsWith('/') ? path.slice(1) : path;
-  return BASE_PATH + clean;
+const $ = (id) => document.getElementById(id);
+
+function asset(path) {
+  if (!path) return "";
+  return path.startsWith("http") ? path : BASE_PATH + path.replace(/^\/+/, "");
 }
 
-function formatAmd(n) {
+function amd(n) {
   return `${Number(n || 0).toLocaleString()} AMD`;
 }
 
-function computeDelivery(district) {
-  if (district === "Артик") return 500;
-  if (district === "Арич") return 700;
-  if (district === "Нор-Кянк") return 1000;
-  if (district === "Пемзашен") return 1000;
-  return 0;
+function deliveryCost(d) {
+  return d === "Артик" ? 500 :
+         d === "Арич" ? 700 :
+         d === "Нор-Кянк" || d === "Пемзашен" ? 1000 : 0;
 }
 
-/* ===================== NAVIGATION ===================== */
+/* ================= NAV ================= */
 
 function showHome() {
-  document.getElementById("home-page")?.classList.remove("hidden");
-  document.getElementById("store-page")?.classList.add("hidden");
-  window.scrollTo(0, 0);
+  $("home-page")?.classList.remove("hidden");
+  $("store-page")?.classList.add("hidden");
+  scrollTo(0, 0);
 }
-
 function showStore() {
-  document.getElementById("home-page")?.classList.add("hidden");
-  document.getElementById("store-page")?.classList.remove("hidden");
-  window.scrollTo(0, 0);
+  $("home-page")?.classList.add("hidden");
+  $("store-page")?.classList.remove("hidden");
+  scrollTo(0, 0);
 }
 
-function goHome(){ showHome(); }
-function goBack(){ showHome(); }
+window.goHome = showHome;
+window.goBack = showHome;
+window.toggleTheme = () => document.body.classList.toggle("light-theme");
 
-/* ===================== SAFE STUBS ===================== */
-
-function toggleTheme(){ document.body.classList.toggle("light-theme"); }
-function showOrderHistory(){ alert("История заказов — скоро"); }
-function fillFromLastOrder(){ alert("Автозаполнение — скоро"); }
-function submitReview(){ alert("Отзывы — скоро"); }
-
-/* ===================== STORES ===================== */
-
-async function fetchStoresIndex() {
-  let lastErr = null;
-  for (const url of STORES_INDEX_CANDIDATES) {
-    try {
-      const r = await fetch(url, { cache: "no-store" });
-      if (!r.ok) throw new Error(r.status);
-      return await r.json();
-    } catch (e) { lastErr = e; }
-  }
-  throw lastErr || new Error("index.json not found");
-}
+/* ================= STORES ================= */
 
 async function loadStores() {
-  const container = document.getElementById("shops-list");
-  const loading = document.getElementById("loading-shops");
-  if (!container) return;
+  const list = $("shops-list");
+  const loading = $("loading-shops");
 
   try {
-    const data = await fetchStoresIndex();
-    loading && (loading.style.display = "none");
-    container.innerHTML = "";
+    const r = await fetch(STORES_INDEX_URL, { cache: "no-store" });
+    if (!r.ok) throw new Error("stores index not found");
+    const data = await r.json();
 
-    (data.stores || []).forEach(store => {
-      if (!store.enabled) return;
-      stores[store.id] = store;
+    loading.style.display = "none";
+    list.innerHTML = "";
 
-      const card = document.createElement("div");
-      card.className = "card";
-      card.onclick = () => openStore(store.id);
-      card.innerHTML = `
+    data.stores.forEach(s => {
+      if (!s.enabled) return;
+      stores[s.id] = s;
+
+      const el = document.createElement("div");
+      el.className = "card";
+      el.innerHTML = `
         <span class="icon">🏪</span>
-        <div>${store.name}</div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:6px">
-          🕙 ${store.workingHours?.open || "09:00"} - ${store.workingHours?.close || "22:00"}
-        </div>
-      `;
-      container.appendChild(card);
+        <div>${s.name}</div>
+        <div style="font-size:12px;color:var(--text-muted)">
+          🕙 ${s.workingHours?.open || "09:00"} - ${s.workingHours?.close || "22:00"}
+        </div>`;
+      el.onclick = () => openStore(s.id);
+      list.appendChild(el);
     });
 
   } catch (e) {
+    loading.innerHTML = "❌ Ошибка загрузки магазинов";
     console.error(e);
-    loading && (loading.innerHTML = `<span style="color:red">Ошибка загрузки магазинов</span>`);
   }
 }
 
-/* ===================== MENU ===================== */
+/* ================= MENU ================= */
 
 async function openStore(storeId) {
   const store = stores[storeId];
   if (!store) return;
 
   showStore();
-  document.getElementById("store-title").textContent = store.name;
-
-  const container = document.getElementById("store-products");
-  container.innerHTML = `<div class="loading">Загрузка меню...</div>`;
+  $("store-title").textContent = store.name;
+  $("store-products").innerHTML = `<div class="loading">Загрузка меню…</div>`;
 
   try {
-    const r = await fetch(assetUrl(store.menu), { cache: "no-store" });
+    const r = await fetch(asset(store.menu), { cache: "no-store" });
     if (!r.ok) throw new Error("menu not found");
     const csv = await r.text();
     renderMenu(csv, storeId);
   } catch (e) {
-    container.innerHTML = `<div style="color:red">Ошибка загрузки меню</div>`;
+    $("store-products").innerHTML = "❌ Ошибка меню";
+    console.error(e);
   }
 }
 
-function renderMenu(csvText, storeId) {
-  const container = document.getElementById("store-products");
-  const lines = csvText.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length <= 1) return;
+function renderMenu(csv, storeId) {
+  const lines = csv.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return;
 
   const categories = {};
   for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i]
-      .split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
-      .map(s => (s || "").replace(/^"|"$/g, "").trim());
+    const [cat, name, desc, priceRaw, image] =
+      lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
+              .map(v => v?.replace(/^"|"$/g, "").trim());
 
-    const category = cols[0] || "Разное";
-    const name = cols[1] || "";
-    const desc = cols[2] || "";
-    const price = parseInt(cols[3]?.replace(/[^\d]/g, ""), 10) || 0;
     if (!name) continue;
+    const price = parseInt(priceRaw?.replace(/\D/g, ""), 10) || 0;
 
-    (categories[category] ||= []).push({ name, desc, price });
+    (categories[cat || "Разное"] ||= []).push({
+      name, desc, price, image
+    });
   }
 
-  container.innerHTML = "";
+  const box = $("store-products");
+  box.innerHTML = "";
 
   Object.keys(categories).sort().forEach(cat => {
-    const h = document.createElement("h3");
-    h.style.color = "var(--accent-gold)";
-    h.style.margin = "18px 0 8px";
-    h.textContent = cat;
-    container.appendChild(h);
+    box.innerHTML += `<h3 style="color:var(--accent-gold)">${cat}</h3>`;
 
     categories[cat].forEach(p => {
-      const jpg = assetUrl(`stores/${storeId}/images/${p.name}.jpg`);
-      const png = assetUrl(`stores/${storeId}/images/${p.name}.png`);
+      const base = p.image || "no-image";
+      const jpg = asset(`stores/${storeId}/images/${base}.jpg`);
+      const png = asset(`stores/${storeId}/images/${base}.png`);
+      const webp = asset(`stores/${storeId}/images/${base}.webp`);
+
       const safe = p.name.replace(/'/g, "\\'");
 
-      const row = document.createElement("div");
-      row.className = "product";
-      row.innerHTML = `
+      const el = document.createElement("div");
+      el.className = "product";
+      el.innerHTML = `
         <img src="${jpg}"
-             alt="${p.name}"
              onerror="
-               if (!this.dataset.png) {
-                 this.dataset.png = 1;
-                 this.src='${png}';
-               } else {
-                 this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'80\\' height=\\'80\\'%3E%3Crect fill=\\'%23333\\' width=\\'80\\' height=\\'80\\'/%3E%3Ctext x=\\'50%25\\' y=\\'50%25\\' dominant-baseline=\\'middle\\' text-anchor=\\'middle\\' font-size=\\'26\\'%3E📦%3C/text%3E%3C/svg%3E';
-               }
+              if(!this.dataset.try){this.dataset.try=1;this.src='${png}';}
+              else if(this.dataset.try==1){this.dataset.try=2;this.src='${webp}';}
+              else{this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'80\\' height=\\'80\\'%3E%3Crect fill=\\'%23333\\' width=\\'80\\' height=\\'80\\'/%3E%3Ctext x=\\'50%25\\' y=\\'50%25\\' text-anchor=\\'middle\\' dominant-baseline=\\'middle\\' font-size=\\'26\\'%3E📦%3C/text%3E%3C/svg%3E';}
              ">
         <div style="flex:1">
           <h4>${p.name}</h4>
-          <p>${p.desc ? p.desc + " • " : ""}${formatAmd(p.price)}</p>
+          <p>${p.desc || ""} • ${amd(p.price)}</p>
         </div>
         <div class="qty-controls">
-          <button onclick="updateCartQty('${storeId}','${safe}',-1)">−</button>
-          <span class="qty-number">${getQty(storeId, p.name)}</span>
-          <button onclick="addToCart('${storeId}','${safe}',${p.price})">+</button>
-        </div>
-      `;
-      container.appendChild(row);
+          <button onclick="changeQty('${storeId}','${safe}',-1)">−</button>
+          <span>${getQty(storeId,p.name)}</span>
+          <button onclick="add('${storeId}','${safe}',${p.price})">+</button>
+        </div>`;
+      box.appendChild(el);
     });
   });
 
-  updateCartDisplay();
+  updateCart();
 }
 
-/* ===================== CART ===================== */
+/* ================= CART ================= */
 
-function getQty(storeId, name) {
-  return currentCart?.[storeId]?.[name]?.qty || 0;
+function getQty(s,n){ return cart?.[s]?.[n]?.q || 0; }
+
+function add(s,n,p){
+  cart[s] ||= {};
+  cart[s][n] ||= { q:0, p };
+  cart[s][n].q++;
+  updateCart();
 }
 
-function addToCart(storeId, name, price) {
-  currentCart[storeId] ||= {};
-  currentCart[storeId][name] ||= { qty: 0, price };
-  currentCart[storeId][name].qty++;
-  updateCartDisplay();
+function changeQty(s,n,d){
+  if(!cart[s]?.[n]) return;
+  cart[s][n].q+=d;
+  if(cart[s][n].q<=0) delete cart[s][n];
+  updateCart();
 }
 
-function updateCartQty(storeId, name, delta) {
-  const item = currentCart?.[storeId]?.[name];
-  if (!item) return;
-  item.qty += delta;
-  if (item.qty <= 0) delete currentCart[storeId][name];
-  updateCartDisplay();
-}
+function updateCart(){
+  const box=$("global-cart-items");
+  if(!box) return;
+  box.innerHTML="";
+  let sum=0;
 
-function updateCartDisplay() {
-  const cart = document.getElementById("global-cart-items");
-  if (!cart) return;
-  cart.innerHTML = "";
-
-  let itemsTotal = 0;
-  for (const s of Object.keys(currentCart)) {
-    cart.innerHTML += `<h4 style="color:var(--accent-gold)">${stores[s]?.name || s}</h4>`;
-    for (const n of Object.keys(currentCart[s])) {
-      const it = currentCart[s][n];
-      itemsTotal += it.qty * it.price;
-      cart.innerHTML += `
-        <div class="cart-item">
-          <div>${n}</div>
-          <span>${it.qty} × ${formatAmd(it.price)}</span>
-        </div>`;
+  for(const s in cart){
+    box.innerHTML+=`<h4>${stores[s]?.name||s}</h4>`;
+    for(const n in cart[s]){
+      const i=cart[s][n];
+      sum+=i.q*i.p;
+      box.innerHTML+=`<div class="cart-item">${n} — ${i.q} × ${amd(i.p)}</div>`;
     }
   }
 
-  const d = computeDelivery(document.getElementById("district")?.value || "");
-  document.getElementById("global-cart-total").textContent = `Товары: ${formatAmd(itemsTotal)}`;
-  document.getElementById("delivery-total").textContent = `Доставка: ${formatAmd(d)}`;
-  document.getElementById("grand-total").textContent = `Итого: ${formatAmd(itemsTotal + d)}`;
+  const d=deliveryCost($("district")?.value);
+  $("global-cart-total").textContent=`Товары: ${amd(sum)}`;
+  $("delivery-total").textContent=`Доставка: ${amd(d)}`;
+  $("grand-total").textContent=`Итого: ${amd(sum+d)}`;
 }
 
-/* ===================== ORDER ===================== */
+window.add=add;
+window.changeQty=changeQty;
 
-async function submitOrder() {
-  alert("Заказ отправлен (сервер работает)");
-}
+/* ================= INIT ================= */
 
-function placeOrder(){ submitOrder(); }
-
-/* ===================== INIT ===================== */
-
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded",()=>{
   showHome();
   loadStores();
-  document.getElementById("district")?.addEventListener("change", updateCartDisplay);
+  $("district")?.addEventListener("change",updateCart);
 });
-
-/* expose */
-window.goHome = goHome;
-window.goBack = goBack;
-window.toggleTheme = toggleTheme;
-window.showOrderHistory = showOrderHistory;
-window.fillFromLastOrder = fillFromLastOrder;
-window.submitReview = submitReview;
-window.openStore = openStore;
-window.addToCart = addToCart;
-window.updateCartQty = updateCartQty;
-window.placeOrder = placeOrder;
