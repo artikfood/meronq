@@ -171,27 +171,24 @@ function renderMenu(csvText, storeId) {
       const row = document.createElement("div");
       row.className = "product";
 
-      const img = p.image
-        ? assetUrl(`stores/${storeId}/images/${p.image}`)
-        : `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23333' width='80' height='80'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='26'%3E📦%3C/text%3E%3C/svg%3E`;
+    const img = assetUrl(
+  `stores/${storeId}/images/${p.name}.jpg`
+);
 
       const safe = p.name.replace(/'/g, "\\'");
 
       row.innerHTML = `
-        <img src="${img}" alt="${p.name}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'80\\' height=\\'80\\'%3E%3Crect fill=\\'%23333\\' width=\\'80\\' height=\\'80\\'/%3E%3Ctext x=\\'50%25\\' y=\\'50%25\\' dominant-baseline=\\'middle\\' text-anchor=\\'middle\\' font-size=\\'26\\'%3E📦%3C/text%3E%3C/svg%3E'">
-        <div style="flex:1;">
-          <h4>${p.name}</h4>
-          <p>${p.desc ? p.desc + " • " : ""}${formatAmd(p.price)}</p>
-        </div>
-        <div class="qty-controls">
-          <button onclick="updateCartQty('${storeId}','${safe}',-1)">−</button>
-          <span class="qty-number">${getQty(storeId,p.name)}</span>
-          <button onclick="addToCart('${storeId}','${safe}',${p.price})">+</button>
-        </div>
-      `;
-      container.appendChild(row);
-    });
-  });
+     <img src="${img}"
+     alt="${p.name}"
+     onerror="
+       if (!this.dataset.pngTried) {
+         this.dataset.pngTried = '1';
+         this.src='${assetUrl(`stores/${storeId}/images/${p.name}.png`)}';
+       } else {
+         this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'80\\' height=\\'80\\'%3E%3Crect fill=\\'%23333\\' width=\\'80\\' height=\\'80\\'/%3E%3Ctext x=\\'50%25\\' y=\\'50%25\\' dominant-baseline=\\'middle\\' text-anchor=\\'middle\\' font-size=\\'26\\'%3E📦%3C/text%3E%3C/svg%3E';
+       }
+     ">
+
 
   updateCartDisplay();
 }
