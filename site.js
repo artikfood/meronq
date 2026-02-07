@@ -563,9 +563,15 @@ async function placeOrder() {
       throw new Error(j.error || `HTTP ${r.status}`);
     }
 
-    alert("✅ Заказ отправлен! Номер: " + (j.orderId || ""));
-    cart = {};
-    updateCart();
+    if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+
+saveOrderToLocal(orderData, j);   // ✅ ВОТ ЭТО
+
+alert("✅ Заказ отправлен!");
+cart = {};
+updateCart();
+goHome();
+
 
     // очистим комментарий (остальное можно оставить)
     if ($("comment")) $("comment").value = "";
