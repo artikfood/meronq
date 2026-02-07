@@ -6,7 +6,7 @@
       "logo": "stores/hay_grill/logo.png",
       "menu": "stores/hay_grill/hay_grill_menu.csv",
       "enabled": true,
-      "workingHours": { "open": "10:00", "close": "22:00" }
+      "workingHours": { "open": "11:00", "close": "23:00" }
     },
     {
       "id": "million",
