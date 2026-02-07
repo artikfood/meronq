@@ -156,17 +156,154 @@ function updateCart(){
 }
 
 /* ================= ORDER + HISTORY ================= */
-const LS_LAST="meronq_last_order";
 
-function saveLast(o){ localStorage.setItem(LS_LAST,JSON.stringify(o)); }
+const LS_LAST = "meronq_last_order";
+const LS_HISTORY = "meronq_order_history_v1";
+
+function safeParse(str, fallback) {
+  try { return JSON.parse(str); } catch { return fallback; }
+}
+
+function saveLast(o){
+  localStorage.setItem(LS_LAST, JSON.stringify(o));
+}
+
+function saveToHistory(o, serverResult){
+  const history = safeParse(localStorage.getItem(LS_HISTORY), []);
+
+  const record = {
+    id: serverResult?.orderId || null,
+    at: new Date().toISOString(),
+    name: o.name || "",
+    phone: o.phone || "",
+    address: o.address || "",
+    district: o.district || "",
+    payment: o.payment || "",
+    comment: o.comment || "",
+    totals: o.totals || null,
+    products: o.products || []
+  };
+
+  history.unshift(record);
+  localStorage.setItem(LS_HISTORY, JSON.stringify(history.slice(0, 30)));
+}
 
 function fillFromLastOrder(){
-  const o=JSON.parse(localStorage.getItem(LS_LAST)||"null");
+  const o = safeParse(localStorage.getItem(LS_LAST), null);
   if(!o) return alert("Нет данных");
+
   ["name","phone","address","district","payment","comment"].forEach(k=>{
-    document.getElementById(k).value=o[k]||"";
+    const el = document.getElementById(k);
+    if (el) el.value = o[k] || "";
   });
+
+  // если есть блок карты — синхронизируем видимость
+  const paymentSelect = document.getElementById("payment");
+  const cardInfo = document.getElementById("card-info");
+  if (paymentSelect && cardInfo) {
+    cardInfo.style.display = (paymentSelect.value || "").toLowerCase().includes("перевод") ? "block" : "none";
+  }
 }
+
+// История через твою модалку (#history-modal / #history-list)
+function getHistory(){
+  return safeParse(localStorage.getItem(LS_HISTORY), []);
+}
+
+function showOrderHistory(){
+  const modal = document.getElementById("history-modal");
+  const list = document.getElementById("history-list");
+  if(!modal || !list) return;
+
+  const history = getHistory();
+  if(!history.length){
+    list.innerHTML = `<div style="padding:16px;color:var(--text-muted);text-align:center">История пуста</div>`;
+  } else {
+    list.innerHTML = history.map((h, idx) => {
+      const dt = new Date(h.at);
+      const niceDt = isNaN(dt.getTime()) ? h.at : dt.toLocaleString();
+      const grand = h?.totals?.grandTotal ?? null;
+
+      return `
+        <div style="
+          border:1px solid var(--border-glass);
+          background:linear-gradient(180deg,var(--bg-glass),rgba(255,255,255,0.02));
+          border-radius:16px;
+          padding:12px;
+          margin-bottom:10px;
+        ">
+          <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+            <div style="font-weight:700;color:var(--text-main)">
+              ${h.id ? `Заказ #${h.id}` : `Заказ`}
+            </div>
+            <div style="color:var(--text-muted);font-size:13px">${niceDt}</div>
+          </div>
+          <div style="margin-top:6px;color:var(--text-muted);font-size:13px">
+            👤 ${h.name} • 📞 ${h.phone}
+          </div>
+          <div style="margin-top:4px;color:var(--text-muted);font-size:13px">
+            📍 ${h.address} • 🏙 ${h.district} • 💳 ${h.payment}
+          </div>
+          <div style="margin-top:10px;font-weight:700;color:var(--accent-gold)">
+            ${grand != null ? `Итого: ${Number(grand).toLocaleString()} AMD` : ""}
+          </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px">
+            <button onclick="useHistoryOrder(${idx})" style="
+              padding:9px 12px;border-radius:999px;
+              border:1px solid var(--border-glass);
+              background:var(--bg-glass); color:var(--text-main);
+              cursor:pointer;font-weight:600
+            ">Заполнить форму</button>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  modal.classList.remove("hidden");
+  modal.style.display = "flex";
+}
+
+function closeOrderHistory(){
+  const modal = document.getElementById("history-modal");
+  if(!modal) return;
+  modal.classList.add("hidden");
+  modal.style.display = "none";
+}
+
+function clearOrderHistory(){
+  localStorage.removeItem(LS_HISTORY);
+  showOrderHistory();
+}
+
+function useHistoryOrder(index){
+  const history = getHistory();
+  const h = history[index];
+  if(!h) return;
+
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.value = val || "";
+  };
+
+  setVal("name", h.name);
+  setVal("phone", h.phone);
+  setVal("address", h.address);
+  setVal("district", h.district);
+  setVal("payment", h.payment);
+  setVal("comment", h.comment);
+
+  closeOrderHistory();
+  document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
+}
+
+window.fillFromLastOrder = fillFromLastOrder;
+window.showOrderHistory = showOrderHistory;
+window.closeOrderHistory = closeOrderHistory;
+window.clearOrderHistory = clearOrderHistory;
+window.useHistoryOrder = useHistoryOrder;
+
+/* ================= ORDER SEND ================= */
 
 async function placeOrder(){
   const o={
@@ -194,13 +331,20 @@ async function placeOrder(){
     headers:{'Content-Type':'application/json','x-api-key':API_KEY},
     body:JSON.stringify(o)
   });
-  const j=await r.json();
-  if(!j.ok) return alert("Ошибка");
 
+  const j=await r.json().catch(()=>({ok:false,error:"Bad JSON"}));
+  if(!j.ok) return alert("Ошибка заказа: " + (j.error || "Unknown"));
+
+  // ✅ сохраняем последний заказ + историю
   saveLast(o);
+  saveToHistory(o, j);
+
   cart={}; updateCart(); goHome();
   alert("✅ Заказ отправлен");
 }
+
+window.placeOrder = placeOrder;
+
 
 /* ================= INIT ================= */
 /* =======================
