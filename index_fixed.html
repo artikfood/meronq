@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Artik Food — Premium Delivery</title>
+
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f1115">
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-main: #0f1115;
+      --bg-secondary: #151822;
+      --bg-card: rgba(255,255,255,0.06);
+      --bg-glass: rgba(255,255,255,0.08);
+      --border-glass: rgba(255,255,255,0.12);
+      --accent-gold: #d4af37;
+      --accent-green: #2ecc71;
+      --text-main: #f4f4f4;
+      --text-muted: #b3b3b3;
+      --shadow-soft: 0 10px 30px rgba(0,0,0,0.35);
+      --shadow-hover: 0 16px 40px rgba(0,0,0,0.5);
+      --radius-xl: 20px;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+    }
+
+    body.light-theme {
+      --bg-main: #f7f7f9;
+      --bg-secondary: #ffffff;
+      --bg-card: rgba(0,0,0,0.04);
+      --bg-glass: rgba(0,0,0,0.05);
+      --border-glass: rgba(0,0,0,0.12);
+      --accent-gold: #b08a1f;
+      --accent-green: #27ae60;
+      --text-main: #1c1c1e;
+      --text-muted: #6e6e73;
+      --shadow-soft: 0 8px 24px rgba(0,0,0,0.08);
+      --shadow-hover: 0 14px 34px rgba(0,0,0,0.12);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Inter", sans-serif;
+      background: radial-gradient(1200px 600px at 20% -10%, #1b1f2b 0%, #0f1115 50%, #0b0d12 100%);
+      color: var(--text-main);
+      line-height: 1.5;
+      transition: background 0.3s ease, color 0.3s ease;
+    }
+
+    body.light-theme {
+      background: radial-gradient(1200px 600px at 20% -10%, #ffffff 0%, #f2f2f6 50%, #ececf1 100%);
+    }
+
+    a { color: var(--accent-gold); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: linear-gradient(180deg, rgba(15,17,21,0.95), rgba(15,17,21,0.85));
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border-glass);
+      padding: 14px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    body.light-theme header {
+      background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85));
+    }
+
+    header .logo-box {
+      display:flex;
+      align-items:center;
+      gap:12px;
+      cursor:pointer;
+      user-select:none;
+      flex-wrap: wrap;
+    }
+
+    header h1 {
+      margin: 0;
+      font-family: "Playfair Display", serif;
+      font-weight: 600;
+      font-size: 22px;
+      letter-spacing: 0.5px;
+      color: var(--accent-gold);
+    }
+
+    .search-container input{
+      width: 260px;
+      max-width: 60vw;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06);
+      color: var(--text-main);
+      outline: none;
+    }
+    body.light-theme .search-container input{
+      background: rgba(0,0,0,0.04);
+      border: 1px solid rgba(0,0,0,0.12);
+      color: var(--text-main);
+    }
+
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    nav a {
+      color: var(--text-main);
+      font-weight: 500;
+      font-size: 14px;
+      padding: 6px 10px;
+      border-radius: 10px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    nav a:hover {
+      background: var(--bg-glass);
+      color: var(--accent-gold);
+    }
+
+    .theme-toggle {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      border: 1px solid var(--border-glass);
+      background: var(--bg-glass);
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      cursor: pointer;
+      box-shadow: var(--shadow-soft);
+      transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+    }
+
+    .theme-toggle:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-hover);
+      background: rgba(212,175,55,0.15);
+      color: var(--accent-gold);
+    }
+
+    .hero {
+      padding: 70px 20px 60px;
+      text-align: center;
+      background:
+        radial-gradient(600px 300px at 50% -10%, rgba(212,175,55,0.18), transparent 70%),
+        radial-gradient(800px 400px at 80% 0%, rgba(46,204,113,0.15), transparent 70%);
+    }
+
+    .hero h2 {
+      font-family: "Playfair Display", serif;
+      font-size: 40px;
+      margin-bottom: 12px;
+      letter-spacing: 0.5px;
+      color: #ffffff;
+    }
+
+    body.light-theme .hero h2 { color: #1c1c1e; }
+
+    .hero p {
+      font-size: 17px;
+      color: var(--text-muted);
+      margin-bottom: 26px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .hero button {
+      background: linear-gradient(135deg, #d4af37, #f1d67a);
+      color: #0f1115;
+      border: none;
+      padding: 14px 28px;
+      font-size: 15px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 600;
+      box-shadow: 0 8px 24px rgba(212,175,55,0.35);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .hero button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 30px rgba(212,175,55,0.5);
+    }
+
+    .section {
+      padding: 48px 20px;
+      max-width: 1200px;
+      margin: auto;
+    }
+
+    .section h3 {
+      text-align: center;
+      margin-bottom: 30px;
+      font-family: "Playfair Display", serif;
+      font-weight: 600;
+      font-size: 28px;
+      letter-spacing: 0.4px;
+      color: var(--accent-gold);
+    }
+
+    .shops, .categories {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 18px;
+    }
+
+    .products {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .card, .product {
+      background: linear-gradient(180deg, var(--bg-glass), rgba(255,255,255,0.02));
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-xl);
+      padding: 18px 16px;
+      box-shadow: var(--shadow-soft);
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+
+    .card:hover, .product:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-hover);
+      border-color: rgba(212,175,55,0.4);
+    }
+
+    .card .icon {
+      font-size: 38px;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .card div {
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+
+    .product {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      text-align: left;
+      gap: 14px;
+      padding: 16px 18px;
+    }
+
+    .product img {
+      width: 80px;
+      height: 80px;
+      object-fit: cover;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.1);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      flex-shrink: 0;
+    }
+
+    .product h4 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .product p {
+      margin: 6px 0 0;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .qty-controls {
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      gap:10px;
+      user-select:none;
+      flex-shrink: 0;
+    }
+
+    .qty-controls button {
+      width:32px;
+      height:32px;
+      border-radius:50%;
+      border:none;
+      background: linear-gradient(135deg, #2ecc71, #6df0a0);
+      color:#0f1115;
+      font-weight:700;
+      cursor:pointer;
+      box-shadow: 0 4px 14px rgba(46,204,113,0.35);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .qty-controls button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 8px 22px rgba(46,204,113,0.55);
+    }
+
+    .qty-number {
+      min-width:24px;
+      font-weight:600;
+      text-align:center;
+      color: var(--text-main);
+    }
+
+    .cart {
+      background: linear-gradient(180deg, var(--bg-glass), rgba(255,255,255,0.02));
+      border: 1px solid var(--border-glass);
+      padding: 18px 16px;
+      border-radius: var(--radius-xl);
+      max-width: 540px;
+      margin: 20px auto;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .cart h4 {
+      margin-top:0;
+      text-align:center;
+      font-family: "Playfair Display", serif;
+      font-weight: 600;
+      font-size: 20px;
+      color: var(--accent-gold);
+      margin-bottom: 14px;
+    }
+
+    .cart-item {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:10px;
+      font-size:14px;
+      gap:10px;
+      color: var(--text-main);
+    }
+
+    .cart-item span { color: var(--text-muted); }
+
+    .cart-total {
+      font-weight:600;
+      margin-top:10px;
+      text-align:center;
+      color: var(--text-main);
+    }
+
+    .cart-item button {
+      background: rgba(255,255,255,0.12) !important;
+      border: 1px solid rgba(255,255,255,0.25);
+      color: #ff6b6b;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 0;
+      margin-left: auto;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+    }
+
+    .cart-item button:hover {
+      background: rgba(255,107,107,0.15) !important;
+      transform: scale(1.05);
+      box-shadow: 0 6px 14px rgba(255,107,107,0.35);
+    }
+
+    .order-form {
+      background: linear-gradient(180deg, var(--bg-glass), rgba(255,255,255,0.02));
+      border: 1px solid var(--border-glass);
+      padding: 22px 20px;
+      border-radius: var(--radius-xl);
+      max-width: 540px;
+      margin: auto;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .order-form input,
+    .order-form textarea,
+    .order-form select {
+      width:100%;
+      padding:12px 14px;
+      margin-bottom:14px;
+      border-radius:12px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06);
+      color: var(--text-main);
+      font-size:14px;
+      outline: none;
+    }
+
+    body.light-theme .order-form input,
+    body.light-theme .order-form textarea,
+    body.light-theme .order-form select {
+      background: rgba(0,0,0,0.04);
+      border: 1px solid rgba(0,0,0,0.12);
+    }
+
+    .order-form input::placeholder,
+    .order-form textarea::placeholder {
+      color: var(--text-muted);
+    }
+
+    .order-form button {
+      width:100%;
+      background: linear-gradient(135deg, #2ecc71, #6df0a0);
+      color:#0f1115;
+      border:none;
+      padding:14px;
+      font-size:16px;
+      border-radius:999px;
+      cursor:pointer;
+      font-weight:600;
+      box-shadow: 0 8px 24px rgba(46,204,113,0.35);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .order-form button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 30px rgba(46,204,113,0.55);
+    }
+
+    footer {
+      background: linear-gradient(180deg, rgba(15,17,21,0.9), rgba(15,17,21,1));
+      color: var(--text-muted);
+      text-align:center;
+      padding:20px;
+      margin-top:60px;
+      font-size:13px;
+      border-top: 1px solid var(--border-glass);
+    }
+
+    body.light-theme footer {
+      background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,1));
+    }
+
+    .hidden { display:none; }
+
+    .back-btn {
+      display: inline-block;
+      margin-bottom: 14px;
+      background: var(--bg-glass);
+      color: var(--text-main);
+      border: 1px solid var(--border-glass);
+      padding: 8px 16px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .floating-cart {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #2ecc71, #6df0a0);
+      color: #0f1115;
+      font-size: 24px;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(46,204,113,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .floating-cart:hover {
+      transform: scale(1.05);
+      box-shadow: 0 8px 24px rgba(46,204,113,0.7);
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    .floating-cart.pulse { animation: pulse 0.5s ease-in-out; }
+
+    @keyframes confetti-fall {
+      to { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+    }
+
+    .confetti {
+      position: fixed;
+      width: 10px;
+      height: 10px;
+      background: #f0f;
+      top: -10px;
+      z-index: 9999;
+      animation: confetti-fall 3s linear forwards;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-muted);
+      font-size: 16px;
+    }
+
+    @media (max-width: 768px) {
+      .hero h2 { font-size: 32px; }
+      .section h3 { font-size: 24px; }
+      header h1 { font-size: 18px; }
+      .floating-cart { bottom: 12px; right: 12px; }
+      .product img { width: 60px; height: 60px; }
+    }
+  </style>
+</head>
+
+<body class="light-theme">
+
+<header>
+  <div class="logo-box" onclick="goHome()">
+    <h1>Artik Food</h1>
+  </div>
+  <div class="search-container">
+    <input type="text" id="searchInput" placeholder="🔍 Поиск товаров...">
+  </div>
+  <nav>
+    <a href="#" onclick="event.preventDefault(); openShops();">Магазины</a>
+    <a href="#" onclick="event.preventDefault(); showOrderHistory();">📱 История</a>
+    <a href="#" onclick="event.preventDefault(); document.getElementById('reviews-section').scrollIntoView({ behavior: 'smooth' }); document.getElementById('reviews-section').style.display = 'block';">⭐ Отзывы</a>
+    <a href="#cart" onclick="event.preventDefault(); document.getElementById('cart-page').scrollIntoView({ behavior: 'smooth' });">Корзина</a>
+    <div class="theme-toggle" onclick="toggleTheme()">🌙</div>
+  </nav>
+</header>
+
+<div id="home-page">
+  <section class="hero">
+    <h2>Premium доставка в Артике</h2>
+    <p>Закажите продукты из лучших магазинов с доставкой на дом</p>
+    <button onclick="document.getElementById('shops').scrollIntoView({ behavior: 'smooth' });">Смотреть магазины</button>
+  </section>
+
+  <section class="section" id="shops">
+    <h3>Наши магазины</h3>
+    <div class="loading" id="loading-shops">Загрузка магазинов...</div>
+    <div class="shops" id="shops-list"></div>
+  </section>
+</div>
+
+<div id="store-page" class="hidden">
+  <section class="section">
+    <button class="back-btn" onclick="goBack()">← Назад</button>
+    <h3 id="store-title"></h3>
+
+    <div id="categories-block" class="hidden">
+      <div class="categories" id="categories-list"></div>
+    </div>
+
+    <div class="products" id="store-products"></div>
+  </section>
+
+  <div id="store-cart" class="hidden">
+    <div class="cart">
+      <h4>Корзина магазина</h4>
+      <div id="store-cart-items"></div>
+      <div class="cart-total" id="store-cart-total">Итого: 0 AMD</div>
+    </div>
+  </div>
+</div>
+
+<section class="section" id="cart-page">
+  <h3>Корзина</h3>
+  <div class="cart">
+    <div id="global-cart-items">
+      <p style="text-align:center; color: var(--text-muted);">Корзина пуста</p>
+    </div>
+    <div class="cart-total" id="global-cart-total">Товары: 0 AMD</div>
+    <div class="cart-total" id="delivery-total">Доставка: 0 AMD</div>
+    <div class="cart-total" id="grand-total" style="font-size: 18px; color: var(--accent-gold);">Итого: 0 AMD</div>
+  </div>
+
+  <div style="text-align: center; margin: 20px auto; padding: 12px; background: linear-gradient(135deg, rgba(46,204,113,0.1), rgba(46,204,113,0.05)); border-radius: 12px; max-width: 540px; border: 1px solid rgba(46,204,113,0.3);">
+    <span style="font-size: 16px; color: var(--accent-green); font-weight: 600;">⏱ Доставка: 30-45 минут</span>
+  </div>
+
+  <div class="order-form">
+    <div style="display: flex; gap: 10px; margin-bottom: 14px;">
+      <button onclick="fillFromLastOrder()" style="flex: 1; padding: 10px; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-glass); border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;">⚡ Данные из последнего заказа</button>
+    </div>
+    <input type="text" id="name" placeholder="Ваше имя" required>
+    <input type="tel" id="phone" placeholder="Телефон" required>
+    <input type="text" id="address" placeholder="Адрес доставки" required>
+    <select id="district">
+      <option value="">Выберите район</option>
+      <option value="Артик">Артик (500 AMD)</option>
+      <option value="Арич">Арич (700 AMD)</option>
+      <option value="Нор-Кянк">Нор-Кянк (1000 AMD)</option>
+      <option value="Пемзашен">Пемзашен (1000 AMD)</option>
+    </select>
+    <select id="payment">
+      <option value="Наличные курьеру">💵 Наличные курьеру</option>
+      <option value="Перевод на карту">💳 Перевод на карту (ACBA)</option>
+    </select>
+    <textarea id="comment" rows="3" placeholder="Комментарий к заказу"></textarea>
+    <button onclick="placeOrder()">📲 Отправить заказ</button>
+  </div>
+</section>
+
+<section class="section" id="reviews-section" style="display: none;">
+  <h3>⭐ Оставить отзыв</h3>
+  <div class="order-form">
+    <div style="text-align: center; margin-bottom: 20px;">
+      <div style="font-size: 14px; color: var(--text-muted); margin-bottom: 10px;">Оцените качество</div>
+      <div id="star-rating" style="font-size: 40px; cursor: pointer;">
+        <span class="star" data-rating="1">☆</span>
+        <span class="star" data-rating="2">☆</span>
+        <span class="star" data-rating="3">☆</span>
+        <span class="star" data-rating="4">☆</span>
+        <span class="star" data-rating="5">☆</span>
+      </div>
+      <div id="rating-text" style="color: var(--text-muted); font-size: 14px; margin-top: 8px;">Нажмите на звёзды</div>
+    </div>
+    <input type="text" id="review-name" placeholder="Ваше имя">
+    <textarea id="review-comment" rows="4" placeholder="Комментарий (необязательно)"></textarea>
+    <button onclick="submitReview()">📝 Отправить отзыв</button>
+  </div>
+
+  <div style="margin-top: 40px;">
+    <h3>💬 Отзывы клиентов</h3>
+    <div id="reviews-list"></div>
+  </div>
+</section>
+
+<div class="floating-cart" onclick="document.getElementById('cart-page').scrollIntoView({ behavior: 'smooth' });">🛒</div>
+
+<footer>
+  <p>&copy; 2026 Artik Food. Все права защищены.</p>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>
