@@ -651,18 +651,23 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
-/* ================= INIT ================= */
-document.addEventListener("DOMContentLoaded", () => {
-  showHome();
-  loadStores();
+/* =======================
+   ORDER HISTORY (localStorage)
+======================= */
 
-   // ====== LocalStorage keys ======
 const LS_HISTORY_KEY = "meronq_order_history_v1";
 const LS_LAST_ORDER_KEY = "meronq_last_order_v1";
 
+function safeParse(str, fallback) {
+  try { return JSON.parse(str); } catch { return fallback; }
+}
+
+function getHistory() {
+  return safeParse(localStorage.getItem(LS_HISTORY_KEY), []);
+}
+
 // Сохранить заказ в историю + как последний
 function saveOrderToLocal(orderData, resultFromServer) {
-  // аккуратно вырежем лишнее, чтобы не раздувать localStorage
   const record = {
     id: resultFromServer?.orderId || resultFromServer?.id || null,
     at: new Date().toISOString(),
@@ -678,32 +683,27 @@ function saveOrderToLocal(orderData, resultFromServer) {
     products: Array.isArray(orderData?.products) ? orderData.products : [],
   };
 
-  // last order
   localStorage.setItem(LS_LAST_ORDER_KEY, JSON.stringify(record));
 
-  // history (prepend, max 30)
-  const prev = safeParse(localStorage.getItem(LS_HISTORY_KEY), []);
+  const prev = getHistory();
   prev.unshift(record);
-  const trimmed = prev.slice(0, 30);
-  localStorage.setItem(LS_HISTORY_KEY, JSON.stringify(trimmed));
-}
-
-function safeParse(str, fallback) {
-  try { return JSON.parse(str); } catch { return fallback; }
-}
-
-function getHistory() {
-  return safeParse(localStorage.getItem(LS_HISTORY_KEY), []);
+  localStorage.setItem(LS_HISTORY_KEY, JSON.stringify(prev.slice(0, 30)));
 }
 
 function closeOrderHistory() {
-  document.getElementById("history-modal")?.classList.add("hidden");
+  const modal = document.getElementById("history-modal");
+  if (!modal) return;
+  modal.classList.add("hidden");
+  modal.style.display = "none";
 }
 
 function showOrderHistory() {
   const modal = document.getElementById("history-modal");
   const list = document.getElementById("history-list");
-  if (!modal || !list) return;
+  if (!modal || !list) {
+    alert("История: блок не найден (history-modal / history-list)");
+    return;
+  }
 
   const history = getHistory();
 
@@ -772,38 +772,17 @@ function showOrderHistory() {
   }
 
   modal.classList.remove("hidden");
+  modal.style.display = "flex";
 }
 
 function clearOrderHistory() {
   localStorage.removeItem(LS_HISTORY_KEY);
-  // last order оставим — но можно удалить тоже
-  // localStorage.removeItem(LS_LAST_ORDER_KEY);
   showOrderHistory();
 }
 
-// Заполнить форму из выбранной записи истории
-function useHistoryOrder(index) {
-  const history = getHistory();
-  const h = history[index];
-  if (!h) return;
+function fillOrderForm(record) {
+  const c = record?.customer || {};
 
-  fillOrderForm(h);
-  closeOrderHistory();
-
-  // прокрутка к форме
-  document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
-}
-
-// Кнопка "Данные из последнего заказа"
-function fillFromLastOrder() {
-  const h = safeParse(localStorage.getItem(LS_LAST_ORDER_KEY), null);
-  if (!h) return alert("Нет сохранённых данных последнего заказа");
-  fillOrderForm(h);
-  document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
-}
-
-function fillOrderForm(h) {
-  const c = h.customer || {};
   const setVal = (id, val) => {
     const el = document.getElementById(id);
     if (el && val != null) el.value = val;
@@ -816,7 +795,7 @@ function fillOrderForm(h) {
   setVal("payment", c.payment);
   setVal("comment", c.comment);
 
-  // если есть блок с картой - обновим видимость
+  // если есть блок с картой — синхронизируем
   const paymentSelect = document.getElementById("payment");
   const cardInfo = document.getElementById("card-info");
   if (paymentSelect && cardInfo) {
@@ -824,34 +803,49 @@ function fillOrderForm(h) {
   }
 }
 
-// Небольшой escape (если у тебя его нет — оставь этот)
-function escapeHtml(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+function useHistoryOrder(index) {
+  const h = getHistory()[index];
+  if (!h) return;
+  fillOrderForm(h);
+  closeOrderHistory();
+  document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
 }
 
-// Экспорт в window (чтобы работали onclick из HTML)
+function fillFromLastOrder() {
+  const h = safeParse(localStorage.getItem(LS_LAST_ORDER_KEY), null);
+  if (!h) return alert("Нет сохранённых данных последнего заказа");
+  fillOrderForm(h);
+  document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
+}
+
+/* ================= INIT ================= */
+document.addEventListener("DOMContentLoaded", () => {
+  showHome();
+  loadStores();
+
+  // Всегда прячем историю при загрузке (на случай, если CSS/кэш шалит)
+  closeOrderHistory();
+
+  // пересчёт доставки
+  document.getElementById("district")?.addEventListener("change", updateCart);
+
+  // Показ карты Fast Bank при выборе перевода
+  const paymentSelect = document.getElementById("payment");
+  const cardInfo = document.getElementById("card-info");
+  if (paymentSelect && cardInfo) {
+    const sync = () => {
+      cardInfo.style.display = paymentSelect.value.includes("Перевод") ? "block" : "none";
+    };
+    paymentSelect.addEventListener("change", sync);
+    sync();
+  }
+});
+  }
+});
+
+// exports
 window.showOrderHistory = showOrderHistory;
 window.closeOrderHistory = closeOrderHistory;
 window.clearOrderHistory = clearOrderHistory;
 window.useHistoryOrder = useHistoryOrder;
 window.fillFromLastOrder = fillFromLastOrder;
-
-  // пересчёт доставки
-  document.getElementById("district")
-  ?.addEventListener("change", updateCart);
-
-  // 👇 ПОКАЗ КАРТЫ FAST BANK ПРИ ВЫБОРЕ ПЕРЕВОДА
-  const paymentSelect = document.getElementById("payment");
-  const cardInfo = document.getElementById("card-info");
-
-  if (paymentSelect && cardInfo) {
-    paymentSelect.addEventListener("change", () => {
-      cardInfo.style.display =
-        paymentSelect.value.includes("Перевод")
-          ? "block"
-          : "none";
-    });
-  }
-});
