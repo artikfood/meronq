@@ -650,6 +650,188 @@ document.addEventListener("DOMContentLoaded", () => {
   showHome();
   loadStores();
 
+   // ====== LocalStorage keys ======
+const LS_HISTORY_KEY = "meronq_order_history_v1";
+const LS_LAST_ORDER_KEY = "meronq_last_order_v1";
+
+// Сохранить заказ в историю + как последний
+function saveOrderToLocal(orderData, resultFromServer) {
+  // аккуратно вырежем лишнее, чтобы не раздувать localStorage
+  const record = {
+    id: resultFromServer?.orderId || resultFromServer?.id || null,
+    at: new Date().toISOString(),
+    customer: {
+      name: orderData?.name || "",
+      phone: orderData?.phone || "",
+      address: orderData?.address || "",
+      district: orderData?.district || "",
+      payment: orderData?.payment || "",
+      comment: orderData?.comment || "",
+    },
+    totals: orderData?.totals || null,
+    products: Array.isArray(orderData?.products) ? orderData.products : [],
+  };
+
+  // last order
+  localStorage.setItem(LS_LAST_ORDER_KEY, JSON.stringify(record));
+
+  // history (prepend, max 30)
+  const prev = safeParse(localStorage.getItem(LS_HISTORY_KEY), []);
+  prev.unshift(record);
+  const trimmed = prev.slice(0, 30);
+  localStorage.setItem(LS_HISTORY_KEY, JSON.stringify(trimmed));
+}
+
+function safeParse(str, fallback) {
+  try { return JSON.parse(str); } catch { return fallback; }
+}
+
+function getHistory() {
+  return safeParse(localStorage.getItem(LS_HISTORY_KEY), []);
+}
+
+function closeOrderHistory() {
+  document.getElementById("history-modal")?.classList.add("hidden");
+}
+
+function showOrderHistory() {
+  const modal = document.getElementById("history-modal");
+  const list = document.getElementById("history-list");
+  if (!modal || !list) return;
+
+  const history = getHistory();
+
+  if (!history.length) {
+    list.innerHTML = `<div style="padding:16px;color:var(--text-muted);text-align:center">История пуста</div>`;
+  } else {
+    list.innerHTML = history.map((h, idx) => {
+      const date = new Date(h.at);
+      const dt = isNaN(date.getTime()) ? h.at : date.toLocaleString();
+      const itemsTotal = h?.totals?.itemsTotal ?? null;
+      const delivery = h?.totals?.delivery ?? null;
+      const grand = h?.totals?.grandTotal ?? null;
+
+      const productsText = (h.products || []).slice(0, 12).map(p => {
+        const nm = escapeHtml(p.name || "");
+        const q = Number(p.quantity || 0);
+        const st = escapeHtml(p.storeName || p.storeKey || "");
+        return `<div style="color:var(--text-muted);font-size:13px">• ${nm} × ${q} <span style="opacity:.8">(${st})</span></div>`;
+      }).join("");
+
+      return `
+        <div style="
+          border:1px solid var(--border-glass);
+          background:linear-gradient(180deg,var(--bg-glass),rgba(255,255,255,0.02));
+          border-radius:16px;
+          padding:12px;
+          margin-bottom:10px;
+        ">
+          <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+            <div style="font-weight:700;color:var(--text-main)">
+              Заказ ${h.id ? `#${escapeHtml(String(h.id))}` : `№${history.length - idx}`}
+            </div>
+            <div style="color:var(--text-muted);font-size:13px">${escapeHtml(dt)}</div>
+          </div>
+
+          <div style="margin-top:6px;color:var(--text-muted);font-size:13px">
+            👤 ${escapeHtml(h.customer.name)} • 📞 ${escapeHtml(h.customer.phone)}
+          </div>
+          <div style="margin-top:4px;color:var(--text-muted);font-size:13px">
+            📍 ${escapeHtml(h.customer.address)} • 🏙 ${escapeHtml(h.customer.district)} • 💳 ${escapeHtml(h.customer.payment)}
+          </div>
+
+          <div style="margin-top:8px">
+            ${productsText || `<div style="color:var(--text-muted);font-size:13px">Товары не сохранены</div>`}
+          </div>
+
+          <div style="margin-top:10px;font-weight:700;color:var(--accent-gold)">
+            ${grand != null ? `Итого: ${Number(grand).toLocaleString()} AMD` : ""}
+            <span style="font-weight:500;color:var(--text-muted);font-size:13px;margin-left:10px">
+              ${itemsTotal != null ? `Товары: ${Number(itemsTotal).toLocaleString()} AMD` : ""}
+              ${delivery != null ? ` • Доставка: ${Number(delivery).toLocaleString()} AMD` : ""}
+            </span>
+          </div>
+
+          <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px">
+            <button onclick="useHistoryOrder(${idx})" style="
+              padding:9px 12px;border-radius:999px;
+              border:1px solid var(--border-glass);
+              background:var(--bg-glass); color:var(--text-main);
+              cursor:pointer;font-weight:600
+            ">Заполнить форму</button>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  modal.classList.remove("hidden");
+}
+
+function clearOrderHistory() {
+  localStorage.removeItem(LS_HISTORY_KEY);
+  // last order оставим — но можно удалить тоже
+  // localStorage.removeItem(LS_LAST_ORDER_KEY);
+  showOrderHistory();
+}
+
+// Заполнить форму из выбранной записи истории
+function useHistoryOrder(index) {
+  const history = getHistory();
+  const h = history[index];
+  if (!h) return;
+
+  fillOrderForm(h);
+  closeOrderHistory();
+
+  // прокрутка к форме
+  document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
+}
+
+// Кнопка "Данные из последнего заказа"
+function fillFromLastOrder() {
+  const h = safeParse(localStorage.getItem(LS_LAST_ORDER_KEY), null);
+  if (!h) return alert("Нет сохранённых данных последнего заказа");
+  fillOrderForm(h);
+  document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
+}
+
+function fillOrderForm(h) {
+  const c = h.customer || {};
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && val != null) el.value = val;
+  };
+
+  setVal("name", c.name);
+  setVal("phone", c.phone);
+  setVal("address", c.address);
+  setVal("district", c.district);
+  setVal("payment", c.payment);
+  setVal("comment", c.comment);
+
+  // если есть блок с картой - обновим видимость
+  const paymentSelect = document.getElementById("payment");
+  const cardInfo = document.getElementById("card-info");
+  if (paymentSelect && cardInfo) {
+    cardInfo.style.display = paymentSelect.value.includes("Перевод") ? "block" : "none";
+  }
+}
+
+// Небольшой escape (если у тебя его нет — оставь этот)
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// Экспорт в window (чтобы работали onclick из HTML)
+window.showOrderHistory = showOrderHistory;
+window.closeOrderHistory = closeOrderHistory;
+window.clearOrderHistory = clearOrderHistory;
+window.useHistoryOrder = useHistoryOrder;
+window.fillFromLastOrder = fillFromLastOrder;
+
   // пересчёт доставки
   document.getElementById("district")
   ?.addEventListener("change", updateCart);
