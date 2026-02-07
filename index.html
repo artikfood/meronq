@@ -669,6 +669,56 @@
 <footer>
   <p>&copy; 2026 Artik Food. Все права защищены.</p>
 </footer>
+  <!-- ORDER HISTORY MODAL -->
+<div id="history-modal" class="hidden" style="
+  position:fixed; inset:0; z-index:99999;
+  background:rgba(0,0,0,.55);
+  display:flex; align-items:center; justify-content:center;
+  padding:16px;
+">
+  <div style="
+    width:min(720px, 96vw);
+    max-height:86vh;
+    overflow:auto;
+    background:var(--bg-secondary);
+    border:1px solid var(--border-glass);
+    border-radius:20px;
+    box-shadow:var(--shadow-hover);
+    padding:16px;
+  ">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="font-family:'Playfair Display',serif;font-size:22px;color:var(--accent-gold);font-weight:700;">
+        📱 История заказов
+      </div>
+      <button onclick="closeOrderHistory()" style="
+        width:42px;height:42px;border-radius:50%;
+        border:1px solid var(--border-glass);
+        background:var(--bg-glass);
+        color:var(--text-main);
+        cursor:pointer;
+        font-size:18px;
+      ">✕</button>
+    </div>
+
+    <div id="history-list" style="margin-top:12px"></div>
+
+    <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;justify-content:flex-end">
+      <button onclick="clearOrderHistory()" style="
+        padding:10px 14px;border-radius:999px;
+        border:1px solid rgba(255,107,107,.35);
+        background:rgba(255,107,107,.10);
+        color:#ff6b6b; cursor:pointer; font-weight:600;
+      ">Очистить историю</button>
+      <button onclick="closeOrderHistory()" style="
+        padding:10px 14px;border-radius:999px;
+        border:1px solid var(--border-glass);
+        background:var(--bg-glass);
+        color:var(--text-main); cursor:pointer; font-weight:600;
+      ">Закрыть</button>
+    </div>
+  </div>
+</div>
+
 
 <script src="site.js"></script>
 </body>
