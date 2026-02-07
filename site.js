@@ -648,29 +648,42 @@ function escapeHtml(s) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
+// ====== LocalStorage keys ======
+const LS_HISTORY_KEY = "meronq_order_history_v1";
+const LS_LAST_ORDER_KEY = "meronq_last_order_v1";
+
+function saveOrderToLocal(orderData, resultFromServer) {
+  const record = {
+    id: resultFromServer?.orderId || resultFromServer?.id || null,
+    at: new Date().toISOString(),
+    customer: {
+      name: orderData.name,
+      phone: orderData.phone,
+      address: orderData.address,
+      district: orderData.district,
+      payment: orderData.payment,
+      comment: orderData.comment,
+    },
+    totals: orderData.totals,
+    products: orderData.products,
+  };
+
+  localStorage.setItem(LS_LAST_ORDER_KEY, JSON.stringify(record));
+
+  const prev = safeParse(localStorage.getItem(LS_HISTORY_KEY), []);
+  prev.unshift(record);
+  localStorage.setItem(LS_HISTORY_KEY, JSON.stringify(prev.slice(0, 30)));
+}
+
+function safeParse(str, fallback) {
+  try { return JSON.parse(str); } catch { return fallback; }
+}
 
 /* ================= INIT ================= */
 document.addEventListener("DOMContentLoaded", () => {
   showHome();
   loadStores();
 
-   // ====== LocalStorage keys ======
-const LS_HISTORY_KEY = "meronq_order_history_v1";
-const LS_LAST_ORDER_KEY = "meronq_last_order_v1";
-
-// Сохранить заказ в историю + как последний
-function saveOrderToLocal(orderData, resultFromServer) {
-  // аккуратно вырежем лишнее, чтобы не раздувать localStorage
-  const record = {
-    id: resultFromServer?.orderId || resultFromServer?.id || null,
-    at: new Date().toISOString(),
-    customer: {
-      name: orderData?.name || "",
-      phone: orderData?.phone || "",
-      address: orderData?.address || "",
-      district: orderData?.district || "",
-      payment: orderData?.payment || "",
-      comment: orderData?.comment || "",
     },
     totals: orderData?.totals || null,
     products: Array.isArray(orderData?.products) ? orderData.products : [],
