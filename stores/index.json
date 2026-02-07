@@ -4,7 +4,7 @@
       "id": "hay_grill",
       "name": "Hay Grill",
       "logo": "stores/hay_grill/logo.png",
-      "menu": "stores/hay_grill/hay_grill_menu.csv",
+      "menu": "meronq/stores/hay_grill/hay_grill_menu.csv",
       "enabled": true,
       "workingHours": { "open": "10:00", "close": "22:00" }
     },
