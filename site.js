@@ -1,8 +1,8 @@
 /* =========================================================
-   MERONQ / ARTIK FOOD — site.js (STABLE ARCHITECTURE)
-   • image slug from CSV
-   • no filename guessing
-   • no кириллицы в путях
+   MERONQ / ARTIK FOOD — site.js (STABLE + LOGOS + CSV ;/,)
+   • Logos from stores/index.json
+   • CSV delimiter autodetect (comma OR semicolon)
+   • Image slug from CSV column "image" (no extension)
 ========================================================= */
 
 const BASE_PATH = location.pathname.includes("/meronq/") ? "/meronq/" : "/";
@@ -12,8 +12,6 @@ const API_KEY = "meronq_Secret_2026!";
 
 let stores = {};
 let cart = {};
-
-/* ================= HELPERS ================= */
 
 const $ = (id) => document.getElementById(id);
 
@@ -29,7 +27,7 @@ function amd(n) {
 function deliveryCost(d) {
   return d === "Артик" ? 500 :
          d === "Арич" ? 700 :
-         d === "Нор-Кянк" || d === "Пемзашен" ? 1000 : 0;
+         (d === "Нор-Кянк" || d === "Пемзашен") ? 1000 : 0;
 }
 
 /* ================= NAV ================= */
@@ -49,39 +47,57 @@ window.goHome = showHome;
 window.goBack = showHome;
 window.toggleTheme = () => document.body.classList.toggle("light-theme");
 
+/* (не ломаем клики в шапке) */
+window.showOrderHistory = () => alert("История — скоро");
+window.fillFromLastOrder = () => alert("Данные из последнего заказа — скоро");
+window.submitReview = () => alert("Отзывы — скоро");
+
 /* ================= STORES ================= */
 
 async function loadStores() {
   const list = $("shops-list");
   const loading = $("loading-shops");
+  if (!list) return;
 
   try {
     const r = await fetch(STORES_INDEX_URL, { cache: "no-store" });
-    if (!r.ok) throw new Error("stores index not found");
+    if (!r.ok) throw new Error(`stores/index.json HTTP ${r.status}`);
     const data = await r.json();
 
-    loading.style.display = "none";
+    if (loading) loading.style.display = "none";
     list.innerHTML = "";
 
-    data.stores.forEach(s => {
-      if (!s.enabled) return;
+    (data.stores || []).forEach((s) => {
+      if (!s?.enabled) return;
       stores[s.id] = s;
 
       const el = document.createElement("div");
       el.className = "card";
-      el.innerHTML = `
-        <span class="icon">🏪</span>
-        <div>${s.name}</div>
-        <div style="font-size:12px;color:var(--text-muted)">
-          🕙 ${s.workingHours?.open || "09:00"} - ${s.workingHours?.close || "22:00"}
-        </div>`;
       el.onclick = () => openStore(s.id);
+
+      const logoSrc = asset(s.logo);
+      el.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
+          <img src="${logoSrc}"
+               alt="${escapeHtml(s.name)}"
+               style="width:72px;height:72px;border-radius:16px;object-fit:cover;box-shadow:var(--shadow-soft);background:rgba(0,0,0,0.06)"
+               onerror="this.style.display='none'">
+          <div style="font-weight:700">${escapeHtml(s.name)}</div>
+          <div style="font-size:12px;color:var(--text-muted)">
+            🕙 ${escapeHtml(s.workingHours?.open || "09:00")} - ${escapeHtml(s.workingHours?.close || "22:00")}
+          </div>
+        </div>
+      `;
+
       list.appendChild(el);
     });
 
+    if (!list.children.length) {
+      list.innerHTML = `<div class="loading">Магазины не найдены</div>`;
+    }
   } catch (e) {
-    loading.innerHTML = "❌ Ошибка загрузки магазинов";
     console.error(e);
+    if (loading) loading.innerHTML = `<div style="color:#ff6b6b;">❌ ${e.message}</div>`;
   }
 }
 
@@ -92,71 +108,115 @@ async function openStore(storeId) {
   if (!store) return;
 
   showStore();
-  $("store-title").textContent = store.name;
-  $("store-products").innerHTML = `<div class="loading">Загрузка меню…</div>`;
+  $("store-title") && ($("store-title").textContent = store.name);
+
+  const box = $("store-products");
+  if (!box) return;
+  box.innerHTML = `<div class="loading">Загрузка меню…</div>`;
 
   try {
-    const r = await fetch(asset(store.menu), { cache: "no-store" });
-    if (!r.ok) throw new Error("menu not found");
+    const menuUrl = asset(store.menu);
+    const r = await fetch(menuUrl, { cache: "no-store" });
+    if (!r.ok) throw new Error(`Меню не найдено: ${menuUrl} (HTTP ${r.status})`);
     const csv = await r.text();
     renderMenu(csv, storeId);
   } catch (e) {
-    $("store-products").innerHTML = "❌ Ошибка меню";
     console.error(e);
+    box.innerHTML = `<div class="loading" style="color:#ff6b6b;">❌ ${e.message}</div>`;
   }
 }
 
-function renderMenu(csv, storeId) {
-  const lines = csv.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length < 2) return;
+/* ---- CSV parsing that supports , OR ; and quoted fields ---- */
 
-  const categories = {};
-  for (let i = 1; i < lines.length; i++) {
-    const [cat, name, desc, priceRaw, image] =
-      lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
-              .map(v => v?.replace(/^"|"$/g, "").trim());
+function detectDelimiter(headerLine) {
+  const commas = (headerLine.match(/,/g) || []).length;
+  const semis = (headerLine.match(/;/g) || []).length;
+  // если в файле больше ; чем , (часто после Excel) — берём ;
+  return semis > commas ? ";" : ",";
+}
 
-    if (!name) continue;
-    const price = parseInt(priceRaw?.replace(/\D/g, ""), 10) || 0;
+function splitCsvLine(line, delim) {
+  // split by delimiter that is NOT inside quotes
+  const re = new RegExp(`${escapeRegExp(delim)}(?=(?:(?:[^"]*"){2})*[^"]*$)`);
+  return line.split(re).map((v) => (v ?? "").replace(/^\uFEFF/, "").replace(/^"|"$/g, "").trim());
+}
 
-    (categories[cat || "Разное"] ||= []).push({
-      name, desc, price, image
-    });
+function renderMenu(csvText, storeId) {
+  const box = $("store-products");
+  if (!box) return;
+
+  const lines = csvText.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) {
+    box.innerHTML = `<div class="loading">Меню пустое</div>`;
+    return;
   }
 
-  const box = $("store-products");
+  const delim = detectDelimiter(lines[0]);
+  const categories = {};
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = splitCsvLine(lines[i], delim);
+
+    // ожидаем: category,name,description,price,image
+    const category = cols[0] || "Разное";
+    const name = cols[1] || "";
+    const desc = cols[2] || "";
+    const priceRaw = cols[3] || "0";
+    const imageSlug = (cols[4] || "").trim(); // без расширения
+
+    if (!name) continue;
+    const price = parseInt(String(priceRaw).split("/")[0].replace(/[^\d]/g, ""), 10) || 0;
+
+    (categories[category] ||= []).push({ name, desc, price, image: imageSlug });
+  }
+
   box.innerHTML = "";
 
-  Object.keys(categories).sort().forEach(cat => {
-    box.innerHTML += `<h3 style="color:var(--accent-gold)">${cat}</h3>`;
+  const cats = Object.keys(categories).sort();
+  if (!cats.length) {
+    box.innerHTML = `<div class="loading" style="color:#ff6b6b;">
+      Меню прочиталось, но товары не распознаны.<br>
+      Проверь CSV: 5 колонок (category;name;description;price;image) и чтобы разделитель был одинаковый.
+    </div>`;
+    return;
+  }
 
-    categories[cat].forEach(p => {
-      const base = p.image || "no-image";
+  cats.forEach((cat) => {
+    const h = document.createElement("h3");
+    h.style.margin = "18px 0 8px";
+    h.style.color = "var(--accent-gold)";
+    h.textContent = cat;
+    box.appendChild(h);
+
+    categories[cat].forEach((p) => {
+      const base = p.image || "no-image"; // slug без расширения
       const jpg = asset(`stores/${storeId}/images/${base}.jpg`);
       const png = asset(`stores/${storeId}/images/${base}.png`);
       const webp = asset(`stores/${storeId}/images/${base}.webp`);
 
-      const safe = p.name.replace(/'/g, "\\'");
+      const safeName = p.name.replace(/'/g, "\\'");
 
-      const el = document.createElement("div");
-      el.className = "product";
-      el.innerHTML = `
+      const row = document.createElement("div");
+      row.className = "product";
+      row.innerHTML = `
         <img src="${jpg}"
+             alt="${escapeHtml(p.name)}"
              onerror="
-              if(!this.dataset.try){this.dataset.try=1;this.src='${png}';}
-              else if(this.dataset.try==1){this.dataset.try=2;this.src='${webp}';}
-              else{this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'80\\' height=\\'80\\'%3E%3Crect fill=\\'%23333\\' width=\\'80\\' height=\\'80\\'/%3E%3Ctext x=\\'50%25\\' y=\\'50%25\\' text-anchor=\\'middle\\' dominant-baseline=\\'middle\\' font-size=\\'26\\'%3E📦%3C/text%3E%3C/svg%3E';}
+               if(!this.dataset.step){this.dataset.step='png'; this.src='${png}';}
+               else if(this.dataset.step==='png'){this.dataset.step='webp'; this.src='${webp}';}
+               else{this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'80\\' height=\\'80\\'%3E%3Crect fill=\\'%23333\\' width=\\'80\\' height=\\'80\\'/%3E%3Ctext x=\\'50%25\\' y=\\'50%25\\' text-anchor=\\'middle\\' dominant-baseline=\\'middle\\' font-size=\\'26\\'%3E📦%3C/text%3E%3C/svg%3E';}
              ">
         <div style="flex:1">
-          <h4>${p.name}</h4>
-          <p>${p.desc || ""} • ${amd(p.price)}</p>
+          <h4>${escapeHtml(p.name)}</h4>
+          <p>${escapeHtml(p.desc || "")}${p.desc ? " • " : ""}${amd(p.price)}</p>
         </div>
         <div class="qty-controls">
-          <button onclick="changeQty('${storeId}','${safe}',-1)">−</button>
-          <span>${getQty(storeId,p.name)}</span>
-          <button onclick="add('${storeId}','${safe}',${p.price})">+</button>
-        </div>`;
-      box.appendChild(el);
+          <button onclick="changeQty('${storeId}','${safeName}',-1)">−</button>
+          <span class="qty-number">${getQty(storeId, p.name)}</span>
+          <button onclick="addToCart('${storeId}','${safeName}',${p.price})">+</button>
+        </div>
+      `;
+      box.appendChild(row);
     });
   });
 
@@ -165,50 +225,105 @@ function renderMenu(csv, storeId) {
 
 /* ================= CART ================= */
 
-function getQty(s,n){ return cart?.[s]?.[n]?.q || 0; }
+function getQty(storeId, name) {
+  return cart?.[storeId]?.[name]?.q || 0;
+}
 
-function add(s,n,p){
-  cart[s] ||= {};
-  cart[s][n] ||= { q:0, p };
-  cart[s][n].q++;
+function addToCart(storeId, name, price) {
+  cart[storeId] ||= {};
+  cart[storeId][name] ||= { q: 0, p: price };
+  cart[storeId][name].q++;
   updateCart();
 }
 
-function changeQty(s,n,d){
-  if(!cart[s]?.[n]) return;
-  cart[s][n].q+=d;
-  if(cart[s][n].q<=0) delete cart[s][n];
+function changeQty(storeId, name, delta) {
+  const item = cart?.[storeId]?.[name];
+  if (!item) return;
+  item.q += delta;
+  if (item.q <= 0) delete cart[storeId][name];
+  if (Object.keys(cart[storeId]).length === 0) delete cart[storeId];
   updateCart();
 }
 
-function updateCart(){
-  const box=$("global-cart-items");
-  if(!box) return;
-  box.innerHTML="";
-  let sum=0;
+function updateCart() {
+  const box = $("global-cart-items");
+  if (!box) return;
 
-  for(const s in cart){
-    box.innerHTML+=`<h4>${stores[s]?.name||s}</h4>`;
-    for(const n in cart[s]){
-      const i=cart[s][n];
-      sum+=i.q*i.p;
-      box.innerHTML+=`<div class="cart-item">${n} — ${i.q} × ${amd(i.p)}</div>`;
+  box.innerHTML = "";
+  let sum = 0;
+
+  for (const sid of Object.keys(cart)) {
+    const storeName = stores[sid]?.name || sid;
+
+    const header = document.createElement("div");
+    header.style.margin = "12px 0 6px";
+    header.style.fontWeight = "700";
+    header.style.color = "var(--accent-gold)";
+    header.textContent = storeName;
+    box.appendChild(header);
+
+    for (const name of Object.keys(cart[sid])) {
+      const it = cart[sid][name];
+      sum += it.q * it.p;
+
+      const row = document.createElement("div");
+      row.className = "cart-item";
+      row.innerHTML = `
+        <div style="flex:1;text-align:left;">
+          <div style="font-weight:600;">${escapeHtml(name)}</div>
+          <span>${amd(it.p)} × ${it.q} = ${amd(it.p * it.q)}</span>
+        </div>
+        <div class="qty-controls">
+          <button onclick="changeQty('${sid}','${name.replace(/'/g,"\\'")}',-1)">−</button>
+          <span class="qty-number">${it.q}</span>
+          <button onclick="addToCart('${sid}','${name.replace(/'/g,"\\'")}',${it.p})">+</button>
+        </div>
+      `;
+      box.appendChild(row);
     }
   }
 
-  const d=deliveryCost($("district")?.value);
-  $("global-cart-total").textContent=`Товары: ${amd(sum)}`;
-  $("delivery-total").textContent=`Доставка: ${amd(d)}`;
-  $("grand-total").textContent=`Итого: ${amd(sum+d)}`;
+  if (!Object.keys(cart).length) {
+    box.innerHTML = `<p style="text-align:center; color: var(--text-muted);">Корзина пуста</p>`;
+  }
+
+  const district = $("district")?.value || "";
+  const d = deliveryCost(district);
+
+  $("global-cart-total") && ($("global-cart-total").textContent = `Товары: ${amd(sum)}`);
+  $("delivery-total") && ($("delivery-total").textContent = `Доставка: ${amd(d)}`);
+  $("grand-total") && ($("grand-total").textContent = `Итого: ${amd(sum + d)}`);
 }
 
-window.add=add;
-window.changeQty=changeQty;
+/* ================= ORDER (placeholder) ================= */
+
+async function submitOrder() {
+  alert("Отправка заказа — подключим следующим шагом");
+}
+window.placeOrder = () => submitOrder();
+
+/* ================= UTILS ================= */
+
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 /* ================= INIT ================= */
 
-document.addEventListener("DOMContentLoaded",()=>{
+document.addEventListener("DOMContentLoaded", () => {
   showHome();
   loadStores();
-  $("district")?.addEventListener("change",updateCart);
+  $("district")?.addEventListener("change", updateCart);
 });
+
+window.openStore = openStore;
+window.addToCart = addToCart;
+window.changeQty = changeQty;
