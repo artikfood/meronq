@@ -558,14 +558,12 @@ async function placeOrder() {
       body: JSON.stringify(built.payload),
     });
 
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.ok) {
-      throw new Error(j.error || `HTTP ${r.status}`);
-    }
+    const j = await r.json().catch(() => ({}));if (!r.ok || !j.ok) {
+  throw new Error(j.error || `HTTP ${r.status}`);
+}
 
-    if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
 
-saveOrderToLocal(orderData, j);   // ✅ ВОТ ЭТО
+saveOrderToLocal(built.payload, j);   // ✅ ВОТ ЭТО
 
 alert("✅ Заказ отправлен!");
 cart = {};
