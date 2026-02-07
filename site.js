@@ -649,14 +649,21 @@ function escapeHtml(s) {
 document.addEventListener("DOMContentLoaded", () => {
   showHome();
   loadStores();
-  $("district")?.addEventListener("change", updateCart);
 
-  // Поиск (debounce)
-  const inp = $("searchInput");
-  if (inp) {
-    inp.addEventListener("input", () => {
-      if (searchTimer) clearTimeout(searchTimer);
-      searchTimer = setTimeout(applySearch, 180);
+  // пересчёт доставки
+  document.getElementById("district")
+    ?.addEventListener("change", updateCartDisplay);
+
+  // 👇 ПОКАЗ КАРТЫ FAST BANK ПРИ ВЫБОРЕ ПЕРЕВОДА
+  const paymentSelect = document.getElementById("payment");
+  const cardInfo = document.getElementById("card-info");
+
+  if (paymentSelect && cardInfo) {
+    paymentSelect.addEventListener("change", () => {
+      cardInfo.style.display =
+        paymentSelect.value.includes("Перевод")
+          ? "block"
+          : "none";
     });
   }
 });
