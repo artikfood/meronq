@@ -43,7 +43,7 @@ async function loadStores() {
     if (!container) return;
 
     try {
-        const resp = await fetch(https://github.com/artikfood/meronq/blob/main/stores/index.json);
+        const resp = await fetch(STORES_INDEX_URL);
         if (!resp.ok) throw new Error("Не удалось загрузить список магазинов");
         
         const data = await resp.json();
