@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Artik Food — Premium Delivery</title>
+  <title> Մերոնք — Premium Delivery</title>
 
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f1115">
@@ -538,8 +538,9 @@
 
 <header>
   <div class="logo-box" onclick="goHome()">
-    <h1>Artik Food</h1>
-  </div>
+  <img src="assets/logo.png" alt="Մերոնք" style="height:40px">
+  <h1>Մերոնք</h1>
+</div>
   <div class="search-container">
     <input type="text" id="searchInput" placeholder="🔍 Поиск товаров...">
   </div>
@@ -617,9 +618,22 @@
       <option value="Пемзашен">Пемзашен (1000 AMD)</option>
     </select>
     <select id="payment">
-      <option value="Наличные курьеру">💵 Наличные курьеру</option>
-      <option value="Перевод на карту">💳 Перевод на карту (ACBA)</option>
-    </select>
+  <option value="Наличные курьеру">💵 Նալичные курьеру</option>
+  <option value="Перевод на карту">💳 Перевод на карту (Fast Bank)</option>
+</select>
+
+<div id="card-info"
+     style="display:none;margin:10px 0;padding:10px;
+            border:1px solid rgba(46,204,113,.4);
+            border-radius:10px;
+            background:rgba(46,204,113,.08);
+            font-size:14px">
+  💳 <b>Fast Bank</b><br>
+  Номер карты:<br>
+  <b>4335 4400 4065 6791</b><br>
+  Получатель: <b>Մերոնք</b>
+</div>
+
     <textarea id="comment" rows="3" placeholder="Комментарий к заказу"></textarea>
     <button onclick="placeOrder()">📲 Отправить заказ</button>
   </div>
