@@ -347,49 +347,26 @@ window.placeOrder = placeOrder;
 
 
 /* ================= INIT ================= */
-/* =======================
-   ORDER HISTORY storage
-======================= */
-const LS_HISTORY_KEY = "meronq_order_history_v1";
-const LS_LAST_ORDER_KEY = "meronq_last_order_v1";
 
-function safeParse(str, fallback) {
-  try { return JSON.parse(str); } catch { return fallback; }
-}
+document.addEventListener("DOMContentLoaded", () => {
+  try {
+    if (typeof showHome === "function") showHome();
+    if (typeof loadStores === "function") loadStores();
 
-function saveOrderToLocal(orderData, resultFromServer) {
-  const record = {
-    id: resultFromServer?.orderId || resultFromServer?.id || null,
-    at: new Date().toISOString(),
-    customer: {
-      name: orderData?.name || "",
-      phone: orderData?.phone || "",
-      address: orderData?.address || "",
-      district: orderData?.district || "",
-      payment: orderData?.payment || "",
-      comment: orderData?.comment || "",
-    },
-    totals: orderData?.totals || null,
-    products: Array.isArray(orderData?.products) ? orderData.products : [],
-  };
-
-  // последний заказ
-  localStorage.setItem(LS_LAST_ORDER_KEY, JSON.stringify(record));
-
-  // история (до 30)
-  const history = safeParse(localStorage.getItem(LS_HISTORY_KEY), []);
-  history.unshift(record);
-  localStorage.setItem(LS_HISTORY_KEY, JSON.stringify(history.slice(0, 30)));
-}
-
-document.addEventListener("DOMContentLoaded",()=>{
-  loadStores();
-  document.getElementById("district")?.addEventListener("change",updateCart);
+    const districtSelect = document.getElementById("district");
+    if (districtSelect) {
+      districtSelect.addEventListener("change", () => {
+        if (typeof updateCart === "function") updateCart();
+      });
+    }
+  } catch (e) {
+    console.error("INIT ERROR:", e);
+  }
 });
 
-/* expose */
-window.goHome=goHome;
-window.goBack=goBack;
-window.toggleTheme=toggleTheme;
-window.fillFromLastOrder=fillFromLastOrder;
-window.placeOrder=placeOrder;
+/* ===== expose globals for HTML ===== */
+window.placeOrder = placeOrder;
+window.showOrderHistory = showOrderHistory;
+window.closeOrderHistory = closeOrderHistory;
+window.clearOrderHistory = clearOrderHistory;
+window.fillFromLastOrder = fillFromLastOrder;
