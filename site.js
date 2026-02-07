@@ -652,7 +652,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // пересчёт доставки
   document.getElementById("district")
-    ?.addEventListener("change", updateCartDisplay);
+  ?.addEventListener("change", updateCart);
 
   // 👇 ПОКАЗ КАРТЫ FAST BANK ПРИ ВЫБОРЕ ПЕРЕВОДА
   const paymentSelect = document.getElementById("payment");
