@@ -723,10 +723,11 @@ function saveOrderToLocal(orderData, resultFromServer) {
 
   localStorage.setItem(LS_LAST_ORDER_KEY, JSON.stringify(record));
 
-  const prev = safeParse(localStorage.getItem(LS_HISTORY_KEY), []);
-  prev.unshift(record);
-  localStorage.setItem(LS_HISTORY_KEY, JSON.stringify(prev.slice(0, 30)));
-}
+  let prev = safeParse(localStorage.getItem(LS_HISTORY_KEY), []);
+if (!Array.isArray(prev)) prev = [];   // ← ключевая строка
+prev.unshift(record);
+localStorage.setItem(LS_HISTORY_KEY, JSON.stringify(prev.slice(0, 30)));
+
 
 function getHistory() {
   return safeParse(localStorage.getItem(LS_HISTORY_KEY), []);
