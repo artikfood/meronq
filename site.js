@@ -1,22 +1,19 @@
 /* =========================================================
-   MERONQ / ARTIK FOOD — site.js (CLEAN + FIXED)
+   MERONQ / ARTIK FOOD — site.js (CLEAN + FIXED + COMPACT)
    ✅ Магазин → Категории → Товары категории
    ✅ Иконки категорий
-   ✅ Поиск: магазины / категории / товары (в зависимости от экрана)
+   ✅ Поиск: магазины / категории / товары
    ✅ Счётчик между − / + обновляется мгновенно
    ✅ Заказ → Cloudflare Worker /orders
    ✅ История заказов (localStorage) + заполнение формы
-   CSV: category;name;description;price;image   (или с запятыми)
-   image = slug БЕЗ расширения (jpg/png/webp)
+   ✅ Фото без перебора форматов (только .jpg, без 404-спама)
 ========================================================= */
 
 /* ================= PATHS ================= */
-// ВАЖНО: работает в любой папке (GitHub Pages /Artik-food/meronq/ и т.п.)
 const BASE_PATH = new URL("./", location.href).pathname;
 const STORES_INDEX_URL = BASE_PATH + "stores/index.json";
 
 /* ================= WORKER ================= */
-// ⚠️ Worker ожидает POST на /orders и header x-api-key
 const WORKER_URL = "https://meronq.edulik844.workers.dev/orders";
 const API_KEY = "meronq_Secret_2026!";
 
@@ -27,7 +24,7 @@ let cart = {};  // {storeId: {productName: {q, p}}}
 
 let currentStoreId = null;
 let currentCategory = null;
-let currentCategoryItems = []; // исходный список товаров выбранной категории (для поиска)
+let currentCategoryItems = [];
 
 /* ================= DOM HELPERS ================= */
 const $ = (id) => document.getElementById(id);
@@ -75,7 +72,6 @@ function showStore() {
   scrollTo(0, 0);
 }
 
-// Нажатие "Назад": если в товарах категории → категории, иначе → главная
 function goBack() {
   if (currentStoreId && currentCategory) {
     showCategories(currentStoreId);
@@ -112,6 +108,23 @@ const CATEGORY_ICONS = {
 };
 function catIcon(name) {
   return CATEGORY_ICONS[name] || "📦";
+}
+
+/* ================= IMAGES (NO FORMAT PROBING) ================= */
+// Грузим только JPG. Не пытаемся png/webp -> нет 404 "в других форматах".
+function setProductImage(imgElementId, basePathNoExt) {
+  const img = document.getElementById(imgElementId);
+  if (!img) return;
+
+  const url = asset(basePathNoExt + ".jpg");
+
+  img.onerror = () => {
+    img.onerror = null;
+    img.src =
+      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23333' width='80' height='80'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-size='26'%3E📦%3C/text%3E%3C/svg%3E";
+  };
+
+  img.src = url;
 }
 
 /* ================= STORES ================= */
@@ -179,7 +192,7 @@ async function openStore(storeId) {
   $("categories-list") && ($("categories-list").innerHTML = "");
   $("categories-block")?.classList.remove("hidden");
 
-  // сброс поиска при входе в магазин
+  // сброс поиска
   if ($("searchInput")) $("searchInput").value = "";
 
   // меню уже загружали
@@ -231,12 +244,13 @@ function showCategories(storeId) {
     const card = document.createElement("div");
     card.className = "card";
     card.style.textAlign = "left";
+    card.style.padding = "12px"; // компактнее
     card.innerHTML = `
       <div style="display:flex;align-items:center;gap:10px">
-        <div style="font-size:28px;line-height:1">${catIcon(cat)}</div>
+        <div style="font-size:26px;line-height:1">${catIcon(cat)}</div>
         <div style="flex:1">
-          <div style="font-weight:700">${escapeHtml(cat)}</div>
-          <div style="margin-top:6px;font-size:12px;color:var(--text-muted)">Товаров: ${count}</div>
+          <div style="font-weight:700;font-size:14px">${escapeHtml(cat)}</div>
+          <div style="margin-top:4px;font-size:12px;color:var(--text-muted)">Товаров: ${count}</div>
         </div>
       </div>
     `;
@@ -263,9 +277,8 @@ function showCategoryProducts(storeId, category) {
   scrollTo(0, 0);
 }
 
-/* ====== render product list for a category (used by search too) ====== */
+/* ====== render product list for a category (COMPACT) ====== */
 function makeQtyId(storeId, productName) {
-  // unicode-safe base64
   const enc = btoa(unescape(encodeURIComponent(`${storeId}::${productName}`))).replace(/=+$/g, "");
   return `qty-${enc}`;
 }
@@ -277,12 +290,11 @@ function renderCategoryList(storeId, category, items) {
   productsBox.innerHTML = "";
 
   const h = document.createElement("h3");
-  h.style.margin = "18px 0 8px";
+  h.style.margin = "14px 0 6px";
   h.style.color = "var(--accent-gold)";
+  h.style.fontSize = "16px";
   h.textContent = category;
   productsBox.appendChild(h);
-   setProductImage(imgElId, imgBase);
-
 
   if (!items.length) {
     productsBox.innerHTML += `<div class="loading">Ничего не найдено</div>`;
@@ -290,53 +302,56 @@ function renderCategoryList(storeId, category, items) {
   }
 
   items.forEach((p) => {
-const base = (p.image || "").trim() || "no-image";
-const imgBase = `stores/${storeId}/images/${base}`;
-const imgElId = `img-${makeQtyId(storeId, p.name)}`; // уникальный id для картинки
-
+    const base = (p.image || "").trim() || "no-image";
+    const imgBase = `stores/${storeId}/images/${base}`;      // без расширения
+    const imgElId = `img-${makeQtyId(storeId, p.name)}`;
 
     const safeName = String(p.name || "").replace(/'/g, "\\'");
     const qtyId = makeQtyId(storeId, p.name);
 
     const row = document.createElement("div");
     row.className = "product";
-    row.innerHTML = `
-     <img id="${imgElId}"
-     src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23222' width='80' height='80'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-size='24'%3E⏳%3C/text%3E%3C/svg%3E"
-     alt="${escapeHtml(p.name)}">
+    row.style.gap = "10px";
 
-      <div style="flex:1">
-        <h4>${escapeHtml(p.name)}</h4>
-        <p>${escapeHtml(p.desc || "")}${p.desc ? " • " : ""}${amd(p.price)}</p>
+    row.innerHTML = `
+      <img id="${imgElId}"
+           style="width:62px;height:62px;border-radius:14px;object-fit:cover;flex:0 0 62px"
+           src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23222' width='80' height='80'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-size='24'%3E⏳%3C/text%3E%3C/svg%3E"
+           alt="${escapeHtml(p.name)}">
+
+      <div style="flex:1;min-width:0">
+        <h4 style="margin:0 0 4px;font-size:14px;line-height:1.2">${escapeHtml(p.name)}</h4>
+        <p style="margin:0;font-size:12px;color:var(--text-muted);line-height:1.25">
+          ${escapeHtml(p.desc || "")}${p.desc ? " • " : ""}<span style="color:var(--text-main)">${amd(p.price)}</span>
+        </p>
       </div>
-      <div class="qty-controls">
-        <button onclick="changeQty('${storeId}','${safeName}',-1,'${qtyId}')">−</button>
-        <span class="qty-number" id="${qtyId}">${getQty(storeId, p.name)}</span>
-        <button onclick="addToCart('${storeId}','${safeName}',${p.price},'${qtyId}')">+</button>
+
+      <div class="qty-controls" style="gap:6px">
+        <button style="width:30px;height:30px" onclick="changeQty('${storeId}','${safeName}',-1,'${qtyId}')">−</button>
+        <span class="qty-number" style="min-width:18px;font-size:13px" id="${qtyId}">${getQty(storeId, p.name)}</span>
+        <button style="width:30px;height:30px" onclick="addToCart('${storeId}','${safeName}',${p.price},'${qtyId}')">+</button>
       </div>
     `;
+
     productsBox.appendChild(row);
+
+    // ✅ после добавления в DOM
+    setProductImage(imgElId, imgBase);
   });
 
   updateCart();
 }
 
 /* ================= SEARCH ================= */
-// Поиск работает по контексту:
-// 1) HOME: фильтр магазинов
-// 2) STORE (категории): фильтр категорий
-// 3) STORE (товары): фильтр товаров выбранной категории
 function applySearch() {
   const q = ($("searchInput")?.value || "").trim().toLowerCase();
   const active = q.length >= 2;
 
-  // HOME: фильтр магазинов
   if (!currentStoreId) {
     filterShops(active ? q : "");
     return;
   }
 
-  // STORE: внутри категории -> фильтруем товары
   if (currentStoreId && currentCategory) {
     const items = currentCategoryItems || [];
     const filtered = !active
@@ -350,7 +365,6 @@ function applySearch() {
     return;
   }
 
-  // STORE: на экране категорий -> фильтруем категории
   if (currentStoreId && !currentCategory) {
     filterCategories(active ? q : "");
   }
@@ -446,9 +460,10 @@ function updateCart() {
     const storeName = stores[sid]?.name || sid;
 
     const header = document.createElement("div");
-    header.style.margin = "12px 0 6px";
+    header.style.margin = "10px 0 6px";
     header.style.fontWeight = "700";
     header.style.color = "var(--accent-gold)";
+    header.style.fontSize = "13px";
     header.textContent = storeName;
     box.appendChild(header);
 
@@ -461,13 +476,13 @@ function updateCart() {
       row.className = "cart-item";
       row.innerHTML = `
         <div style="flex:1;text-align:left;">
-          <div style="font-weight:600;">${escapeHtml(name)}</div>
-          <span>${amd(it.p)} × ${it.q} = ${amd(it.p * it.q)}</span>
+          <div style="font-weight:600;font-size:13px">${escapeHtml(name)}</div>
+          <span style="font-size:12px;color:var(--text-muted)">${amd(it.p)} × ${it.q} = ${amd(it.p * it.q)}</span>
         </div>
-        <div class="qty-controls">
-          <button onclick="changeQty('${sid}','${safeName}',-1,'${makeQtyId(sid, name)}')">−</button>
-          <span class="qty-number">${it.q}</span>
-          <button onclick="addToCart('${sid}','${safeName}',${it.p},'${makeQtyId(sid, name)}')">+</button>
+        <div class="qty-controls" style="gap:6px">
+          <button style="width:30px;height:30px" onclick="changeQty('${sid}','${safeName}',-1,'${makeQtyId(sid, name)}')">−</button>
+          <span class="qty-number" style="min-width:18px;font-size:13px">${it.q}</span>
+          <button style="width:30px;height:30px" onclick="addToCart('${sid}','${safeName}',${it.p},'${makeQtyId(sid, name)}')">+</button>
         </div>
       `;
       box.appendChild(row);
@@ -495,15 +510,9 @@ function buildOrderPayload() {
   const payment = ($("payment")?.value || "").trim();
   const comment = ($("comment")?.value || "").trim();
 
-  if (!name || !phone || !address) {
-    return { error: "Заполни имя, телефон и адрес" };
-  }
-  if (!district) {
-    return { error: "Выбери район" };
-  }
-  if (!Object.keys(cart).length) {
-    return { error: "Корзина пуста" };
-  }
+  if (!name || !phone || !address) return { error: "Заполни имя, телефон и адрес" };
+  if (!district) return { error: "Выбери район" };
+  if (!Object.keys(cart).length) return { error: "Корзина пуста" };
 
   const products = [];
   for (const storeId of Object.keys(cart)) {
@@ -543,9 +552,13 @@ function buildOrderPayload() {
 async function placeOrder() {
   const btn = document.querySelector(".order-form button[onclick*='placeOrder']") || null;
 
+  // очистим статус перед новой попыткой
+  const status = document.getElementById("order-status");
+  if (status) status.remove();
+
   const built = buildOrderPayload();
   if (built.error) {
-    alert("❌ " + built.error);
+    showOrderError("❌ " + built.error);
     return;
   }
 
@@ -567,26 +580,55 @@ async function placeOrder() {
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
 
-    // ✅ сохраняем в историю
     saveOrderToLocal(built.payload, j);
 
-    alert("✅ Заказ отправлен!");
+    // успех — можно alert оставить, но ты просил меньше алертов → сделаем мягко:
+    showOrderSuccess("✅ Заказ отправлен!");
+
     cart = {};
     updateCart();
-
     if ($("comment")) $("comment").value = "";
 
-    // вернём на главную и к магазинам
     openShops();
   } catch (e) {
     console.error(e);
-    alert("❌ Ошибка заказа: " + e.message);
+    showOrderError("❌ Ошибка заказа: " + (e?.message || "неизвестно"));
   } finally {
     if (btn) {
       btn.disabled = false;
       btn.textContent = "📲 Отправить заказ";
     }
   }
+}
+
+function showOrderError(text) {
+  let box = document.getElementById("order-status");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "order-status";
+    box.style.cssText =
+      "margin-top:10px;padding:10px 12px;border-radius:14px;" +
+      "border:1px solid rgba(255,107,107,.35);background:rgba(255,107,107,.10);" +
+      "color:#ffb3b3;font-weight:600;font-size:13px;";
+    const form = document.querySelector(".order-form") || document.body;
+    form.appendChild(box);
+  }
+  box.textContent = text;
+}
+
+function showOrderSuccess(text) {
+  let box = document.getElementById("order-status");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "order-status";
+    box.style.cssText =
+      "margin-top:10px;padding:10px 12px;border-radius:14px;" +
+      "border:1px solid rgba(46,204,113,.35);background:rgba(46,204,113,.10);" +
+      "color:#bff3d2;font-weight:700;font-size:13px;";
+    const form = document.querySelector(".order-form") || document.body;
+    form.appendChild(box);
+  }
+  box.textContent = text;
 }
 
 window.openStore = openStore;
@@ -769,7 +811,7 @@ function useHistoryOrder(index) {
 
 function fillFromLastOrder() {
   const h = safeParse(localStorage.getItem(LS_LAST_ORDER_KEY), null);
-  if (!h) return alert("Нет сохранённых данных последнего заказа");
+  if (!h) return showOrderError("Нет сохранённых данных последнего заказа");
   fillOrderForm(h);
   document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
 }
@@ -800,66 +842,15 @@ window.closeOrderHistory = closeOrderHistory;
 window.clearOrderHistory = clearOrderHistory;
 window.useHistoryOrder = useHistoryOrder;
 window.fillFromLastOrder = fillFromLastOrder;
-// ========== Image loader without 404 spam ==========
-const IMAGE_EXTS = [".jpg", ".png", ".webp"];
-const imageExistsCache = new Map(); // url -> true/false
-const resolvedImageCache = new Map(); // basePath -> resolvedUrl
-
-async function urlExists(url) {
-  if (imageExistsCache.has(url)) return imageExistsCache.get(url);
-
-  try {
-    const r = await fetch(url, { method: "HEAD", cache: "force-cache" });
-    const ok = r.ok;
-    imageExistsCache.set(url, ok);
-    return ok;
-  } catch {
-    imageExistsCache.set(url, false);
-    return false;
-  }
-}
-
-async function resolveImageUrl(basePathNoExt) {
-  if (resolvedImageCache.has(basePathNoExt)) return resolvedImageCache.get(basePathNoExt);
-
-  for (const ext of IMAGE_EXTS) {
-    const url = asset(basePathNoExt + ext);
-    // eslint-disable-next-line no-await-in-loop
-    if (await urlExists(url)) {
-      resolvedImageCache.set(basePathNoExt, url);
-      return url;
-    }
-  }
-
-  resolvedImageCache.set(basePathNoExt, "");
-  return "";
-}
-
-async function setProductImage(imgElementId, basePathNoExt) {
-  const img = document.getElementById(imgElementId);
-  if (!img) return;
-
-  const url = await resolveImageUrl(basePathNoExt);
-
-  if (url) {
-    img.src = url;
-  } else {
-    img.src =
-      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23333' width='80' height='80'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-size='26'%3E📦%3C/text%3E%3C/svg%3E";
-  }
-}
-
 
 /* ================= INIT ================= */
 document.addEventListener("DOMContentLoaded", () => {
   showHome();
   loadStores();
 
-  // пересчёт доставки при смене района
   document.getElementById("district")
     ?.addEventListener("change", updateCart);
 
-  // показать карту Fast Bank при выборе перевода
   const paymentSelect = document.getElementById("payment");
   const cardInfo = document.getElementById("card-info");
 
