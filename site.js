@@ -83,7 +83,17 @@ function openShops() {
 window.goHome = openShops;
 window.goBack = goBack;
 window.openShops = openShops;
-window.toggleTheme = () => document.body.classList.toggle("light-theme");
+const THEME_KEY = "meronq_theme_v1";
+
+function applySavedTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  if (saved === "light") document.body.classList.add("light-theme");
+}
+
+window.toggleTheme = () => {
+  document.body.classList.toggle("light-theme");
+  localStorage.setItem(THEME_KEY, document.body.classList.contains("light-theme") ? "light" : "dark");
+};
 
 /* ================= CATEGORY ICONS ================= */
 const CATEGORY_ICONS = {
@@ -849,128 +859,6 @@ async function copyCardNumber() {
   }
 }
 
-/* ================= MULTILANG (SAFE, NO BREAK UI) ================= */
-// Переводим только конкретные элементы, не трогаем товары/цены.
-const LANG_KEY = "meronq_lang_v1";
-const SUPPORTED_LANGS = ["hy", "ru", "en"];
-
-const I18N = {
-  ru: {
-    search: "Поиск...",
-    shops: "Магазины",
-    cart: "Корзина",
-    history: "История заказов",
-    district_choose: "Выберите район",
-    comment: "Комментарий к заказу",
-    send: "📲 Отправить заказ",
-    back: "← Назад",
-    empty_history: "История пуста",
-    fill_form: "Заполнить форму",
-    copy: "📋 Copy",
-    cash: "💵 Наличные курьеру",
-    transfer: "💳 Перевод на карту (Fast Bank)",
-    card_title: "Номер карты:",
-    recipient: "Получатель:",
-  },
-  hy: {
-    search: "Որոնել…",
-    shops: "Խանութներ",
-    cart: "Զամբյուղ",
-    history: "Պատվերների պատմություն",
-    district_choose: "Ընտրեք շրջանը",
-    comment: "Մեկնաբանություն",
-    send: "📲 Ուղարկել պատվերը",
-    back: "← Հետ",
-    empty_history: "Պատմությունը դատարկ է",
-    fill_form: "Լրացնել ձևը",
-    copy: "📋 Պատճենել",
-    cash: "💵 Կանխիկ курьерին",
-    transfer: "💳 Փոխանցում քարտին (Fast Bank)",
-    card_title: "Քարտի համարը․",
-    recipient: "Ստացող․",
-  },
-  en: {
-    search: "Search…",
-    shops: "Stores",
-    cart: "Cart",
-    history: "Order history",
-    district_choose: "Choose district",
-    comment: "Comment",
-    send: "📲 Place order",
-    back: "← Back",
-    empty_history: "History is empty",
-    fill_form: "Fill the form",
-    copy: "📋 Copy",
-    cash: "💵 Cash to courier",
-    transfer: "💳 Card transfer (Fast Bank)",
-    card_title: "Card number:",
-    recipient: "Recipient:",
-  },
-};
-
-function getSavedLang() {
-  const saved = (localStorage.getItem(LANG_KEY) || "").trim();
-  if (SUPPORTED_LANGS.includes(saved)) return saved;
-
-  const nav = (navigator.language || "").toLowerCase();
-  if (nav.startsWith("hy")) return "hy";
-  if (nav.startsWith("ru")) return "ru";
-  return "hy"; // по умолчанию ARM
-}
-
-function applyLang(lang) {
-  if (!SUPPORTED_LANGS.includes(lang)) return;
-  localStorage.setItem(LANG_KEY, lang);
-
-  const t = I18N[lang] || I18N.hy;
-
-  // search placeholder
-  const s = document.getElementById("searchInput");
-  if (s) s.placeholder = t.search;
-
-  // comment placeholder
-  const c = document.getElementById("comment");
-  if (c && c.getAttribute("placeholder")) c.setAttribute("placeholder", t.comment);
-
-  // district first option text
-  const d = document.getElementById("district");
-  if (d && d.options && d.options[0]) d.options[0].textContent = t.district_choose;
-
-  // payment option texts (values оставляем как есть!)
-  const p = document.getElementById("payment");
-  if (p && p.options && p.options.length >= 2) {
-    p.options[0].textContent = t.cash;
-    p.options[1].textContent = t.transfer;
-  }
-
-  // send button text (только если кнопка действительно "Отправить заказ")
-  const sendBtn = document.querySelector(".order-form button[onclick*='placeOrder']");
-  if (sendBtn && !sendBtn.disabled) sendBtn.textContent = t.send;
-
-  // back button (если есть обычная кнопка с текстом)
-  const backBtn = document.querySelector("button[onclick*='goBack']");
-  if (backBtn) backBtn.textContent = t.back;
-
-  // history modal title (если есть отдельный заголовок — пропускаем, иначе не ломаем)
-  // кнопка "Заполнить форму" меняется внутри рендера — оставим как было, чтобы не менять шаблон
-
-  // copy button label
-  const copyBtn = document.getElementById("copy-card-btn");
-  if (copyBtn) copyBtn.textContent = t.copy;
-}
-
-function initLangSwitch() {
-  const sw = document.getElementById("lang-switch");
-  if (!sw) return;
-
-  sw.addEventListener("click", (e) => {
-    const b = e.target?.closest?.("button[data-lang]");
-    if (!b) return;
-    applyLang(b.getAttribute("data-lang"));
-    refreshPaymentUI();
-  });
-}
-
 /* ================= INIT ================= */
 document.addEventListener("DOMContentLoaded", () => {
   showHome();
@@ -981,16 +869,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // payment toggle + copy
   document.getElementById("payment")?.addEventListener("change", () => {
+  applySavedTheme();
     refreshPaymentUI();
     updateCart();
   });
   refreshPaymentUI();
 
   document.getElementById("copy-card-btn")?.addEventListener("click", copyCardNumber);
-
-  // language
-  initLangSwitch();
-  applyLang(getSavedLang());
-});
-
-/* ================= expose search and history already exposed above ================= */
+});/* ================= expose search and history already exposed above ================= */
