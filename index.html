@@ -636,10 +636,22 @@
             background:rgba(46,204,113,.08);
             font-size:14px">
   💳 <b>Fast Bank</b><br>
-  Номер карты:<br>
-  <b>4335 4400 4065 6791</b><br>
-  Получатель: <b>Մերոնք</b>
+  <span>Номер карты:</span><br>
+  <b id="card-number">4335 4400 4065 6791</b>
+  <button id="copy-card" style="
+    margin-left:10px;
+    padding:6px 10px;
+    border-radius:999px;
+    border:1px solid var(--border-glass);
+    background:var(--bg-glass);
+    color:var(--text-main);
+    cursor:pointer;
+    font-weight:600;
+    font-size:13px;
+  ">📋 Скопировать</button><br>
+  <span>Получатель:</span> <b>Մերոնք</b>
 </div>
+
 
     <textarea id="comment" rows="3" placeholder="Комментарий к заказу"></textarea>
     <button onclick="placeOrder()">📲 Отправить заказ</button>
