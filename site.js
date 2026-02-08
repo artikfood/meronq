@@ -969,3 +969,223 @@ document.addEventListener("DOMContentLoaded", () => {
 */
 
 });
+
+/* ================= AUTO MULTI-LANGUAGE (HY default, no data-i18n) =================
+   Работает так:
+   - Находит текстовые узлы/placeholder'ы на странице
+   - Если текст есть в словаре — заменяет на выбранный язык
+   - Язык запоминается в localStorage
+   - По умолчанию: hy (армянский)
+=================================================================================== */
+
+const LANG_KEY = "meronq_lang_v2";
+const SUPPORTED_LANGS = ["hy", "ru", "en"];
+
+// Точные совпадения текста (как в твоём index.html)
+const TEXT_DICT = {
+  // NAV / UI
+  "Магазины": { hy: "Խանութներ", ru: "Магазины", en: "Stores" },
+  "📱 История": { hy: "📱 Պատմություն", ru: "📱 История", en: "📱 History" },
+  "⭐ Отзывы": { hy: "⭐ Կարծիքներ", ru: "⭐ Отзывы", en: "⭐ Reviews" },
+  "Корзина": { hy: "Զամբյուղ", ru: "Корзина", en: "Cart" },
+
+  // HERO
+  "Premium доставка в Артике": { hy: "Պրեմիում առաքում Արթիկում", ru: "Premium доставка в Артике", en: "Premium delivery in Artik" },
+  "Закажите продукты из лучших магазинов с доставкой на дом": {
+    hy: "Պատվիրեք լավագույն խանութներից՝ առաքմամբ տուն",
+    ru: "Закажите продукты из лучших магазинов с доставкой на дом",
+    en: "Order from the best stores with home delivery",
+  },
+  "Смотреть магазины": { hy: "Տեսնել խանութները", ru: "Смотреть магазины", en: "View stores" },
+
+  // Shops
+  "Наши магазины": { hy: "Մեր խանութները", ru: "Наши магазины", en: "Our stores" },
+  "Загрузка магазинов...": { hy: "Խանութները բեռնվում են…", ru: "Загрузка магазинов...", en: "Loading stores..." },
+
+  // Store page
+  "← Назад": { hy: "← Հետ", ru: "← Назад", en: "← Back" },
+  "Корзина магазина": { hy: "Խանութի զամբյուղ", ru: "Корзина магазина", en: "Store cart" },
+  "Корзина пуста": { hy: "Զամբյուղը դատարկ է", ru: "Корзина пуста", en: "Cart is empty" },
+
+  // Cart / totals (для точных редких строк)
+  "⏱ Доставка: 30-45 минут": { hy: "⏱ Առաքում՝ 30-45 րոպե", ru: "⏱ Доставка: 30-45 минут", en: "⏱ Delivery: 30–45 min" },
+  "⚡ Данные из последнего заказа": { hy: "⚡ Վերջին պատվերի տվյալները", ru: "⚡ Данные из последнего заказа", en: "⚡ Last order info" },
+  "Выберите район": { hy: "Ընտրեք շրջան", ru: "Выберите район", en: "Choose district" },
+
+  // District options (текст опции — value не трогаем)
+  "Артик (500 AMD)": { hy: "Արթիկ (500 AMD)", ru: "Артик (500 AMD)", en: "Artik (500 AMD)" },
+  "Арич (700 AMD)": { hy: "Արիչ (700 AMD)", ru: "Арич (700 AMD)", en: "Arich (700 AMD)" },
+  "Нор-Кянк (1000 AMD)": { hy: "Նոր-Կյանք (1000 AMD)", ru: "Нор-Кянк (1000 AMD)", en: "Nor Kyank (1000 AMD)" },
+  "Пемзашен (1000 AMD)": { hy: "Պեմզաշեն (1000 AMD)", ru: "Пемзашен (1000 AMD)", en: "Pemzashen (1000 AMD)" },
+
+  // Payment options
+  "💵 Наличные курьеру": { hy: "💵 Կանխիկ՝ առաքիչին", ru: "💵 Наличные курьеру", en: "💵 Cash to courier" },
+  "💳 Перевод на карту (Fast Bank)": { hy: "💳 Փոխանցում քարտին (Fast Bank)", ru: "💳 Перевод на карту (Fast Bank)", en: "💳 Card transfer (Fast Bank)" },
+
+  // Card info
+  "Номер карты:": { hy: "Քարտի համար՝", ru: "Номер карты:", en: "Card number:" },
+  "Получатель:": { hy: "Ստացող՝", ru: "Получатель:", en: "Recipient:" },
+
+  // Order button
+  "📲 Отправить заказ": { hy: "📲 Ուղարկել պատվերը", ru: "📲 Отправить заказ", en: "📲 Place order" },
+
+  // Reviews
+  "⭐ Оставить отзыв": { hy: "⭐ Թողնել կարծիք", ru: "⭐ Оставить отзыв", en: "⭐ Leave a review" },
+  "Оцените качество": { hy: "Գնահատեք որակը", ru: "Оцените качество", en: "Rate the quality" },
+  "Нажмите на звёзды": { hy: "Սեղմեք աստղերի վրա", ru: "Нажмите на звёзды", en: "Tap the stars" },
+  "📝 Отправить отзыв": { hy: "📝 Ուղարկել կարծիքը", ru: "📝 Отправить отзыв", en: "📝 Send review" },
+  "💬 Отзывы клиентов": { hy: "💬 Հաճախորդների կարծիքներ", ru: "💬 Отзывы клиентов", en: "💬 Customer reviews" },
+
+  // History modal
+  "📱 История заказов": { hy: "📱 Պատվերների պատմություն", ru: "📱 История заказов", en: "📱 Order history" },
+  "Очистить историю": { hy: "Մաքրել պատմությունը", ru: "Очистить историю", en: "Clear history" },
+  "Закрыть": { hy: "Փակել", ru: "Закрыть", en: "Close" },
+
+  // Footer
+  "&copy; 2026 Artik Food. Все права защищены.": {
+    hy: "© 2026 Artik Food. Բոլոր իրավունքները պաշտպանված են։",
+    ru: "© 2026 Artik Food. Все права защищены.",
+    en: "© 2026 Artik Food. All rights reserved.",
+  },
+};
+
+// Перевод строк с числами (например "Итого: 0 AMD", "Товары: 123 AMD")
+const PREFIX_DICT = {
+  "Итого:": { hy: "Ընդամենը՝", ru: "Итого:", en: "Total:" },
+  "Товары:": { hy: "Ապրանքներ՝", ru: "Товары:", en: "Items:" },
+  "Доставка:": { hy: "Առաքում՝", ru: "Доставка:", en: "Delivery:" },
+};
+
+// Placeholder'ы (как в твоём HTML)
+const PLACEHOLDER_DICT = {
+  "🔍 Поиск товаров...": { hy: "🔍 Որոնել…", ru: "🔍 Поиск товаров...", en: "🔍 Search products..." },
+  "Ваше имя": { hy: "Ձեր անունը", ru: "Ваше имя", en: "Your name" },
+  "Телефон": { hy: "Հեռախոս", ru: "Телефон", en: "Phone" },
+  "Адрес доставки": { hy: "Առաքման հասցե", ru: "Адрес доставки", en: "Delivery address" },
+  "Комментарий к заказу": { hy: "Մեկնաբանություն պատվերին", ru: "Комментарий к заказу", en: "Order comment" },
+  "Комментарий (необязательно)": { hy: "Մեկնաբանություն (ըստ ցանկության)", ru: "Комментарий (необязательно)", en: "Comment (optional)" },
+};
+
+let __lang = "hy";
+let __built = false;
+let __textNodes = [];     // { node, base }
+let __phEls = [];         // { el, base }
+
+function __getSavedLang() {
+  const saved = (localStorage.getItem(LANG_KEY) || "").trim();
+  if (SUPPORTED_LANGS.includes(saved)) return saved;
+
+  // дефолт всегда армянский
+  return "hy";
+}
+
+function __styleLangButtons() {
+  const box = document.getElementById("lang-switch");
+  if (!box) return;
+
+  box.querySelectorAll("button[data-lang]").forEach((b) => {
+    const active = b.getAttribute("data-lang") === __lang;
+    b.style.opacity = active ? "1" : "0.55";
+    b.style.border = active ? "1px solid rgba(212,175,55,.6)" : "1px solid rgba(255,255,255,.15)";
+    b.style.background = "rgba(255,255,255,.06)";
+    b.style.color = "var(--text-main)";
+    b.style.borderRadius = "999px";
+    b.style.padding = "8px 12px";
+    b.style.cursor = "pointer";
+    b.style.fontWeight = "700";
+  });
+}
+
+function __translateByPrefix(str) {
+  const s = (str || "").trim();
+
+  for (const pref of Object.keys(PREFIX_DICT)) {
+    if (s.startsWith(pref)) {
+      const rest = s.slice(pref.length).trim();
+      const tr = PREFIX_DICT[pref]?.[__lang] || pref;
+      return (tr + " " + rest).trim();
+    }
+  }
+  return null;
+}
+
+function __buildMapsOnce() {
+  if (__built) return;
+  __built = true;
+
+  // 1) Text nodes
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) => {
+      const txt = (node.nodeValue || "").trim();
+      if (!txt) return NodeFilter.FILTER_REJECT;
+
+      const p = node.parentElement;
+      if (!p) return NodeFilter.FILTER_REJECT;
+      const tag = (p.tagName || "").toLowerCase();
+      if (tag === "script" || tag === "style") return NodeFilter.FILTER_REJECT;
+
+      // переводим только то, что есть в словаре или по префиксу
+      if (TEXT_DICT[txt]) return NodeFilter.FILTER_ACCEPT;
+      if (__translateByPrefix(txt) != null) return NodeFilter.FILTER_ACCEPT;
+
+      return NodeFilter.FILTER_REJECT;
+    },
+  });
+
+  let n;
+  while ((n = walker.nextNode())) {
+    __textNodes.push({ node: n, base: (n.nodeValue || "").trim() });
+  }
+
+  // 2) Placeholders
+  document.querySelectorAll("input[placeholder], textarea[placeholder]").forEach((el) => {
+    const ph = (el.getAttribute("placeholder") || "").trim();
+    if (!ph) return;
+    if (PLACEHOLDER_DICT[ph]) __phEls.push({ el, base: ph });
+  });
+}
+
+function __applyLang() {
+  __buildMapsOnce();
+
+  // Text
+  __textNodes.forEach(({ node, base }) => {
+    // exact
+    const d = TEXT_DICT[base];
+    if (d && d[__lang]) {
+      node.nodeValue = " " + d[__lang] + " ";
+      return;
+    }
+
+    // prefix
+    const byPref = __translateByPrefix(base);
+    if (byPref != null) node.nodeValue = " " + byPref + " ";
+  });
+
+  // Placeholders
+  __phEls.forEach(({ el, base }) => {
+    const d = PLACEHOLDER_DICT[base];
+    if (d && d[__lang]) el.setAttribute("placeholder", d[__lang]);
+  });
+
+  __styleLangButtons();
+}
+
+function setLang(lang) {
+  if (!SUPPORTED_LANGS.includes(lang)) return;
+  __lang = lang;
+  localStorage.setItem(LANG_KEY, lang);
+  __applyLang();
+}
+
+// INIT
+document.addEventListener("DOMContentLoaded", () => {
+  __lang = __getSavedLang();
+  __applyLang();
+
+  document.getElementById("lang-switch")?.addEventListener("click", (e) => {
+    const b = e.target?.closest?.("button[data-lang]");
+    if (!b) return;
+    setLang(b.getAttribute("data-lang"));
+  });
+});
