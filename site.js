@@ -281,6 +281,8 @@ function renderCategoryList(storeId, category, items) {
   h.style.color = "var(--accent-gold)";
   h.textContent = category;
   productsBox.appendChild(h);
+   setProductImage(imgElId, imgBase);
+
 
   if (!items.length) {
     productsBox.innerHTML += `<div class="loading">Ничего не найдено</div>`;
@@ -288,10 +290,10 @@ function renderCategoryList(storeId, category, items) {
   }
 
   items.forEach((p) => {
-    const base = (p.image || "").trim() || "no-image";
-    const jpg = asset(`stores/${storeId}/images/${base}.jpg`);
-    const png = asset(`stores/${storeId}/images/${base}.png`);
-    const webp = asset(`stores/${storeId}/images/${base}.webp`);
+const base = (p.image || "").trim() || "no-image";
+const imgBase = `stores/${storeId}/images/${base}`;
+const imgElId = `img-${makeQtyId(storeId, p.name)}`; // уникальный id для картинки
+
 
     const safeName = String(p.name || "").replace(/'/g, "\\'");
     const qtyId = makeQtyId(storeId, p.name);
@@ -299,13 +301,10 @@ function renderCategoryList(storeId, category, items) {
     const row = document.createElement("div");
     row.className = "product";
     row.innerHTML = `
-      <img src="${jpg}"
-           alt="${escapeHtml(p.name)}"
-           onerror="
-             if(!this.dataset.step){this.dataset.step='png'; this.src='${png}';}
-             else if(this.dataset.step==='png'){this.dataset.step='webp'; this.src='${webp}';}
-             else{this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'80\\' height=\\'80\\'%3E%3Crect fill=\\'%23333\\' width=\\'80\\' height=\\'80\\'/%3E%3Ctext x=\\'50%25\\' y=\\'50%25\\' text-anchor=\\'middle\\' dominant-baseline=\\'middle\\' font-size=\\'26\\'%3E📦%3C/text%3E%3C/svg%3E';}
-           ">
+     <img id="${imgElId}"
+     src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23222' width='80' height='80'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-size='24'%3E⏳%3C/text%3E%3C/svg%3E"
+     alt="${escapeHtml(p.name)}">
+
       <div style="flex:1">
         <h4>${escapeHtml(p.name)}</h4>
         <p>${escapeHtml(p.desc || "")}${p.desc ? " • " : ""}${amd(p.price)}</p>
@@ -801,6 +800,55 @@ window.closeOrderHistory = closeOrderHistory;
 window.clearOrderHistory = clearOrderHistory;
 window.useHistoryOrder = useHistoryOrder;
 window.fillFromLastOrder = fillFromLastOrder;
+// ========== Image loader without 404 spam ==========
+const IMAGE_EXTS = [".jpg", ".png", ".webp"];
+const imageExistsCache = new Map(); // url -> true/false
+const resolvedImageCache = new Map(); // basePath -> resolvedUrl
+
+async function urlExists(url) {
+  if (imageExistsCache.has(url)) return imageExistsCache.get(url);
+
+  try {
+    const r = await fetch(url, { method: "HEAD", cache: "force-cache" });
+    const ok = r.ok;
+    imageExistsCache.set(url, ok);
+    return ok;
+  } catch {
+    imageExistsCache.set(url, false);
+    return false;
+  }
+}
+
+async function resolveImageUrl(basePathNoExt) {
+  if (resolvedImageCache.has(basePathNoExt)) return resolvedImageCache.get(basePathNoExt);
+
+  for (const ext of IMAGE_EXTS) {
+    const url = asset(basePathNoExt + ext);
+    // eslint-disable-next-line no-await-in-loop
+    if (await urlExists(url)) {
+      resolvedImageCache.set(basePathNoExt, url);
+      return url;
+    }
+  }
+
+  resolvedImageCache.set(basePathNoExt, "");
+  return "";
+}
+
+async function setProductImage(imgElementId, basePathNoExt) {
+  const img = document.getElementById(imgElementId);
+  if (!img) return;
+
+  const url = await resolveImageUrl(basePathNoExt);
+
+  if (url) {
+    img.src = url;
+  } else {
+    img.src =
+      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23333' width='80' height='80'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-size='26'%3E📦%3C/text%3E%3C/svg%3E";
+  }
+}
+
 
 /* ================= INIT ================= */
 document.addEventListener("DOMContentLoaded", () => {
