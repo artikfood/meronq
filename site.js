@@ -1,12 +1,12 @@
 /* =========================================================
-   MERONQ / ARTIK FOOD — site.js (CLEAN + FIXED + COMPACT)
+   MERONQ / ARTIK FOOD — site.js (CSP-SAFE + COMPACT + FIXED)
    ✅ Магазин → Категории → Товары категории
    ✅ Иконки категорий
-   ✅ Поиск: магазины / категории / товары
-   ✅ Счётчик между − / + обновляется мгновенно
-   ✅ Заказ → Cloudflare Worker /orders
-   ✅ История заказов (localStorage) + заполнение формы
-   ✅ Фото без перебора форматов (только .jpg, без 404-спама)
+   ✅ Поиск: магазины / категории / товары (по контексту)
+   ✅ +/- без inline onclick (CSP safe)
+   ✅ Фото: .jpg -> .png -> placeholder (без inline onerror)
+   ✅ Заказ → Worker /orders
+   ✅ История заказов (localStorage)
 ========================================================= */
 
 /* ================= PATHS ================= */
@@ -15,6 +15,7 @@ const STORES_INDEX_URL = BASE_PATH + "stores/index.json";
 
 /* ================= WORKER ================= */
 const WORKER_URL = "https://meronq.edulik844.workers.dev/orders";
+// ⚠️ Лучше убрать ключ из фронта позже. Пока оставляем, если Worker требует.
 const API_KEY = "meronq_Secret_2026!";
 
 /* ================= STATE ================= */
@@ -24,7 +25,7 @@ let cart = {};  // {storeId: {productName: {q, p}}}
 
 let currentStoreId = null;
 let currentCategory = null;
-let currentCategoryItems = [];
+let currentCategoryItems = []; // для поиска внутри категории
 
 /* ================= DOM HELPERS ================= */
 const $ = (id) => document.getElementById(id);
@@ -110,21 +111,27 @@ function catIcon(name) {
   return CATEGORY_ICONS[name] || "📦";
 }
 
-/* ================= IMAGES (NO FORMAT PROBING) ================= */
-// Грузим только JPG. Не пытаемся png/webp -> нет 404 "в других форматах".
+/* ================= IMAGES (jpg -> png) ================= */
 function setProductImage(imgElementId, basePathNoExt) {
   const img = document.getElementById(imgElementId);
   if (!img) return;
 
-  const url = asset(basePathNoExt + ".jpg");
+  const jpgUrl = asset(basePathNoExt + ".jpg");
+  const pngUrl = asset(basePathNoExt + ".png");
 
+  // 1) пробуем jpg
   img.onerror = () => {
-    img.onerror = null;
-    img.src =
-      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23333' width='80' height='80'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-size='26'%3E📦%3C/text%3E%3C/svg%3E";
+    // 2) если jpg нет — пробуем png
+    img.onerror = () => {
+      // 3) если и png нет — заглушка
+      img.onerror = null;
+      img.src =
+        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23333' width='80' height='80'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-size='26'%3E📦%3C/text%3E%3C/svg%3E";
+    };
+    img.src = pngUrl;
   };
 
-  img.src = url;
+  img.src = jpgUrl;
 }
 
 /* ================= STORES ================= */
@@ -140,31 +147,42 @@ async function loadStores() {
 
     if (loading) loading.style.display = "none";
     list.innerHTML = "";
+    stores = {};
 
     (data.stores || []).forEach((s) => {
       if (!s?.enabled) return;
       stores[s.id] = s;
 
-      const el = document.createElement("div");
-      el.className = "card";
-      el.onclick = () => openStore(s.id);
+      const card = document.createElement("div");
+      card.className = "card";
+      card.addEventListener("click", () => openStore(s.id));
 
-      const logoSrc = asset(s.logo);
+      // CSP-safe: создаём img как элемент, без inline onerror
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "display:flex;flex-direction:column;align-items:center;gap:10px";
 
-      el.innerHTML = `
-        <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
-          <img src="${logoSrc}"
-               alt="${escapeHtml(s.name)}"
-               style="width:72px;height:72px;border-radius:16px;object-fit:cover;box-shadow:var(--shadow-soft);background:rgba(0,0,0,0.06)"
-               onerror="this.style.display='none'">
-          <div style="font-weight:700">${escapeHtml(s.name)}</div>
-          <div style="font-size:12px;color:var(--text-muted)">
-            🕙 ${escapeHtml(s.workingHours?.open || "09:00")} - ${escapeHtml(s.workingHours?.close || "22:00")}
-          </div>
-        </div>
-      `;
+      const img = document.createElement("img");
+      img.src = asset(s.logo);
+      img.alt = s.name || "";
+      img.style.cssText =
+        "width:72px;height:72px;border-radius:16px;object-fit:cover;" +
+        "box-shadow:var(--shadow-soft);background:rgba(0,0,0,0.06)";
+      img.onerror = () => { img.style.display = "none"; };
 
-      list.appendChild(el);
+      const title = document.createElement("div");
+      title.style.fontWeight = "700";
+      title.textContent = s.name || "";
+
+      const hours = document.createElement("div");
+      hours.style.cssText = "font-size:12px;color:var(--text-muted)";
+      hours.textContent = `🕙 ${s.workingHours?.open || "09:00"} - ${s.workingHours?.close || "22:00"}`;
+
+      wrap.appendChild(img);
+      wrap.appendChild(title);
+      wrap.appendChild(hours);
+      card.appendChild(wrap);
+
+      list.appendChild(card);
     });
 
     if (!list.children.length) {
@@ -186,7 +204,7 @@ async function openStore(storeId) {
   currentCategoryItems = [];
 
   showStore();
-  if ($("store-title")) $("store-title").textContent = store.name;
+  if ($("store-title")) $("store-title").textContent = store.name || "";
 
   $("store-products") && ($("store-products").innerHTML = "");
   $("categories-list") && ($("categories-list").innerHTML = "");
@@ -254,7 +272,7 @@ function showCategories(storeId) {
         </div>
       </div>
     `;
-    card.onclick = () => showCategoryProducts(storeId, cat);
+    card.addEventListener("click", () => showCategoryProducts(storeId, cat));
     catList.appendChild(card);
   });
 
@@ -277,7 +295,7 @@ function showCategoryProducts(storeId, category) {
   scrollTo(0, 0);
 }
 
-/* ====== render product list for a category (COMPACT) ====== */
+/* ====== render product list (CSP-safe) ====== */
 function makeQtyId(storeId, productName) {
   const enc = btoa(unescape(encodeURIComponent(`${storeId}::${productName}`))).replace(/=+$/g, "");
   return `qty-${enc}`;
@@ -303,11 +321,12 @@ function renderCategoryList(storeId, category, items) {
 
   items.forEach((p) => {
     const base = (p.image || "").trim() || "no-image";
-    const imgBase = `stores/${storeId}/images/${base}`;      // без расширения
+    const imgBase = `stores/${storeId}/images/${base}`;
     const imgElId = `img-${makeQtyId(storeId, p.name)}`;
 
-    const safeName = String(p.name || "").replace(/'/g, "\\'");
     const qtyId = makeQtyId(storeId, p.name);
+    const nameEnc = encodeURIComponent(String(p.name || ""));
+    const price = Number(p.price || 0);
 
     const row = document.createElement("div");
     row.className = "product";
@@ -322,20 +341,20 @@ function renderCategoryList(storeId, category, items) {
       <div style="flex:1;min-width:0">
         <h4 style="margin:0 0 4px;font-size:14px;line-height:1.2">${escapeHtml(p.name)}</h4>
         <p style="margin:0;font-size:12px;color:var(--text-muted);line-height:1.25">
-          ${escapeHtml(p.desc || "")}${p.desc ? " • " : ""}<span style="color:var(--text-main)">${amd(p.price)}</span>
+          ${escapeHtml(p.desc || "")}${p.desc ? " • " : ""}<span style="color:var(--text-main)">${amd(price)}</span>
         </p>
       </div>
 
       <div class="qty-controls" style="gap:6px">
-        <button style="width:30px;height:30px" onclick="changeQty('${storeId}','${safeName}',-1,'${qtyId}')">−</button>
+        <button style="width:30px;height:30px"
+                data-act="minus" data-store="${storeId}" data-name="${nameEnc}" data-price="${price}" data-qty="${qtyId}">−</button>
         <span class="qty-number" style="min-width:18px;font-size:13px" id="${qtyId}">${getQty(storeId, p.name)}</span>
-        <button style="width:30px;height:30px" onclick="addToCart('${storeId}','${safeName}',${p.price},'${qtyId}')">+</button>
+        <button style="width:30px;height:30px"
+                data-act="plus" data-store="${storeId}" data-name="${nameEnc}" data-price="${price}" data-qty="${qtyId}">+</button>
       </div>
     `;
 
     productsBox.appendChild(row);
-
-    // ✅ после добавления в DOM
     setProductImage(imgElId, imgBase);
   });
 
@@ -347,11 +366,13 @@ function applySearch() {
   const q = ($("searchInput")?.value || "").trim().toLowerCase();
   const active = q.length >= 2;
 
+  // HOME: фильтр магазинов
   if (!currentStoreId) {
     filterShops(active ? q : "");
     return;
   }
 
+  // STORE: внутри категории -> фильтруем товары
   if (currentStoreId && currentCategory) {
     const items = currentCategoryItems || [];
     const filtered = !active
@@ -365,6 +386,7 @@ function applySearch() {
     return;
   }
 
+  // STORE: на экране категорий -> фильтруем категории
   if (currentStoreId && !currentCategory) {
     filterCategories(active ? q : "");
   }
@@ -406,6 +428,7 @@ function filterCategories(q) {
 }
 
 window.applySearch = applySearch;
+window.openStore = openStore;
 
 /* ================= CART ================= */
 function getQty(storeId, name) {
@@ -471,18 +494,22 @@ function updateCart() {
       const it = cart[sid][name];
       sum += it.q * it.p;
 
-      const safeName = name.replace(/'/g, "\\'");
+      const nameEnc = encodeURIComponent(String(name || ""));
+      const price = Number(it.p || 0);
+
       const row = document.createElement("div");
       row.className = "cart-item";
       row.innerHTML = `
         <div style="flex:1;text-align:left;">
           <div style="font-weight:600;font-size:13px">${escapeHtml(name)}</div>
-          <span style="font-size:12px;color:var(--text-muted)">${amd(it.p)} × ${it.q} = ${amd(it.p * it.q)}</span>
+          <span style="font-size:12px;color:var(--text-muted)">${amd(price)} × ${it.q} = ${amd(price * it.q)}</span>
         </div>
         <div class="qty-controls" style="gap:6px">
-          <button style="width:30px;height:30px" onclick="changeQty('${sid}','${safeName}',-1,'${makeQtyId(sid, name)}')">−</button>
+          <button style="width:30px;height:30px"
+                  data-act="minus" data-store="${sid}" data-name="${nameEnc}" data-price="${price}">−</button>
           <span class="qty-number" style="min-width:18px;font-size:13px">${it.q}</span>
-          <button style="width:30px;height:30px" onclick="addToCart('${sid}','${safeName}',${it.p},'${makeQtyId(sid, name)}')">+</button>
+          <button style="width:30px;height:30px"
+                  data-act="plus" data-store="${sid}" data-name="${nameEnc}" data-price="${price}">+</button>
         </div>
       `;
       box.appendChild(row);
@@ -500,6 +527,9 @@ function updateCart() {
   $("delivery-total") && ($("delivery-total").textContent = `Доставка: ${amd(d)}`);
   $("grand-total") && ($("grand-total").textContent = `Итого: ${amd(sum + d)}`);
 }
+
+window.addToCart = addToCart;
+window.changeQty = changeQty;
 
 /* ================= ORDERS ================= */
 function buildOrderPayload() {
@@ -549,19 +579,40 @@ function buildOrderPayload() {
   };
 }
 
-async function placeOrder() {
-  const btn = document.querySelector(".order-form button[onclick*='placeOrder']") || null;
+function showOrderMsg(text, kind = "error") {
+  let box = document.getElementById("order-status");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "order-status";
+    const form = document.querySelector(".order-form") || document.body;
+    form.appendChild(box);
+  }
 
-  // очистим статус перед новой попыткой
-  const status = document.getElementById("order-status");
-  if (status) status.remove();
+  if (kind === "ok") {
+    box.style.cssText =
+      "margin-top:10px;padding:10px 12px;border-radius:14px;" +
+      "border:1px solid rgba(46,204,113,.35);background:rgba(46,204,113,.10);" +
+      "color:#bff3d2;font-weight:700;font-size:13px;";
+  } else {
+    box.style.cssText =
+      "margin-top:10px;padding:10px 12px;border-radius:14px;" +
+      "border:1px solid rgba(255,107,107,.35);background:rgba(255,107,107,.10);" +
+      "color:#ffb3b3;font-weight:600;font-size:13px;";
+  }
+  box.textContent = text;
+}
+
+async function placeOrder() {
+  // убираем прошлое сообщение
+  document.getElementById("order-status")?.remove();
 
   const built = buildOrderPayload();
   if (built.error) {
-    showOrderError("❌ " + built.error);
+    showOrderMsg("❌ " + built.error, "error");
     return;
   }
 
+  const btn = document.querySelector(".order-form button") || null;
   if (btn) {
     btn.disabled = true;
     btn.textContent = "ОТПРАВЛЯЕМ…";
@@ -572,7 +623,7 @@ async function placeOrder() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": API_KEY,
+        "x-api-key": API_KEY, // можно убрать позже, когда Worker будет принимать по домену
       },
       body: JSON.stringify(built.payload),
     });
@@ -582,8 +633,7 @@ async function placeOrder() {
 
     saveOrderToLocal(built.payload, j);
 
-    // успех — можно alert оставить, но ты просил меньше алертов → сделаем мягко:
-    showOrderSuccess("✅ Заказ отправлен!");
+    showOrderMsg("✅ Заказ отправлен!", "ok");
 
     cart = {};
     updateCart();
@@ -592,7 +642,7 @@ async function placeOrder() {
     openShops();
   } catch (e) {
     console.error(e);
-    showOrderError("❌ Ошибка заказа: " + (e?.message || "неизвестно"));
+    showOrderMsg("❌ Ошибка заказа: " + (e?.message || "неизвестно"), "error");
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -601,39 +651,6 @@ async function placeOrder() {
   }
 }
 
-function showOrderError(text) {
-  let box = document.getElementById("order-status");
-  if (!box) {
-    box = document.createElement("div");
-    box.id = "order-status";
-    box.style.cssText =
-      "margin-top:10px;padding:10px 12px;border-radius:14px;" +
-      "border:1px solid rgba(255,107,107,.35);background:rgba(255,107,107,.10);" +
-      "color:#ffb3b3;font-weight:600;font-size:13px;";
-    const form = document.querySelector(".order-form") || document.body;
-    form.appendChild(box);
-  }
-  box.textContent = text;
-}
-
-function showOrderSuccess(text) {
-  let box = document.getElementById("order-status");
-  if (!box) {
-    box = document.createElement("div");
-    box.id = "order-status";
-    box.style.cssText =
-      "margin-top:10px;padding:10px 12px;border-radius:14px;" +
-      "border:1px solid rgba(46,204,113,.35);background:rgba(46,204,113,.10);" +
-      "color:#bff3d2;font-weight:700;font-size:13px;";
-    const form = document.querySelector(".order-form") || document.body;
-    form.appendChild(box);
-  }
-  box.textContent = text;
-}
-
-window.openStore = openStore;
-window.addToCart = addToCart;
-window.changeQty = changeQty;
 window.placeOrder = placeOrder;
 
 /* ================= CSV PARSE ================= */
@@ -779,7 +796,7 @@ function showOrderHistory() {
           </div>
 
           <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px">
-            <button onclick="useHistoryOrder(${idx})" style="
+            <button data-history-act="use" data-index="${idx}" style="
               padding:9px 12px;border-radius:999px;
               border:1px solid var(--border-glass);
               background:var(--bg-glass); color:var(--text-main);
@@ -797,23 +814,6 @@ function showOrderHistory() {
 function clearOrderHistory() {
   localStorage.removeItem(LS_HISTORY_KEY);
   showOrderHistory();
-}
-
-function useHistoryOrder(index) {
-  const history = getHistory();
-  const h = history[index];
-  if (!h) return;
-
-  fillOrderForm(h);
-  closeOrderHistory();
-  document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
-}
-
-function fillFromLastOrder() {
-  const h = safeParse(localStorage.getItem(LS_LAST_ORDER_KEY), null);
-  if (!h) return showOrderError("Нет сохранённых данных последнего заказа");
-  fillOrderForm(h);
-  document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
 }
 
 function fillOrderForm(h) {
@@ -837,20 +837,142 @@ function fillOrderForm(h) {
   }
 }
 
+function useHistoryOrder(index) {
+  const history = getHistory();
+  const h = history[index];
+  if (!h) return;
+
+  fillOrderForm(h);
+  closeOrderHistory();
+  document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
+}
+
+function fillFromLastOrder() {
+  const h = safeParse(localStorage.getItem(LS_LAST_ORDER_KEY), null);
+  if (!h) return showOrderMsg("Нет сохранённых данных последнего заказа", "error");
+  fillOrderForm(h);
+  document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
+}
+
 window.showOrderHistory = showOrderHistory;
 window.closeOrderHistory = closeOrderHistory;
 window.clearOrderHistory = clearOrderHistory;
 window.useHistoryOrder = useHistoryOrder;
 window.fillFromLastOrder = fillFromLastOrder;
 
+/* ================= CSP-SAFE EVENTS ================= */
+function bindDelegatedClicks() {
+  // +/- в товарах
+  const productsBox = $("store-products");
+  if (productsBox && !productsBox.__bound) {
+    productsBox.__bound = true;
+    productsBox.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-act]");
+      if (!btn) return;
+
+      const act = btn.dataset.act;
+      const storeId = btn.dataset.store;
+      const name = decodeURIComponent(btn.dataset.name || "");
+      const price = Number(btn.dataset.price || 0);
+      const qtyId = btn.dataset.qty || "";
+
+      if (!storeId || !name) return;
+
+      if (act === "plus") addToCart(storeId, name, price, qtyId);
+      if (act === "minus") changeQty(storeId, name, -1, qtyId);
+    });
+  }
+
+  // +/- в корзине
+  const cartBox = $("global-cart-items");
+  if (cartBox && !cartBox.__bound) {
+    cartBox.__bound = true;
+    cartBox.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-act]");
+      if (!btn) return;
+
+      const act = btn.dataset.act;
+      const storeId = btn.dataset.store;
+      const name = decodeURIComponent(btn.dataset.name || "");
+      const price = Number(btn.dataset.price || 0);
+
+      if (!storeId || !name) return;
+
+      if (act === "plus") addToCart(storeId, name, price, makeQtyId(storeId, name));
+      if (act === "minus") changeQty(storeId, name, -1, makeQtyId(storeId, name));
+    });
+  }
+
+  // история (кнопка "Заполнить форму")
+  const historyList = document.getElementById("history-list");
+  if (historyList && !historyList.__bound) {
+    historyList.__bound = true;
+    historyList.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-history-act='use']");
+      if (!btn) return;
+      const idx = parseInt(btn.dataset.index || "0", 10) || 0;
+      useHistoryOrder(idx);
+    });
+  }
+}
+
+// Если в HTML были inline onclick — перевесим на нормальные
+function rebindInlineButtons() {
+  const all = Array.from(document.querySelectorAll("[onclick]"));
+  all.forEach((el) => {
+    const v = String(el.getAttribute("onclick") || "");
+    // order
+    if (v.includes("placeOrder")) {
+      el.addEventListener("click", (e) => { e.preventDefault(); placeOrder(); });
+      el.removeAttribute("onclick");
+      return;
+    }
+    // back/home/theme/history
+    if (v.includes("goBack")) {
+      el.addEventListener("click", (e) => { e.preventDefault(); goBack(); });
+      el.removeAttribute("onclick");
+      return;
+    }
+    if (v.includes("goHome") || v.includes("openShops")) {
+      el.addEventListener("click", (e) => { e.preventDefault(); openShops(); });
+      el.removeAttribute("onclick");
+      return;
+    }
+    if (v.includes("toggleTheme")) {
+      el.addEventListener("click", (e) => { e.preventDefault(); window.toggleTheme(); });
+      el.removeAttribute("onclick");
+      return;
+    }
+    if (v.includes("showOrderHistory")) {
+      el.addEventListener("click", (e) => { e.preventDefault(); showOrderHistory(); });
+      el.removeAttribute("onclick");
+      return;
+    }
+    if (v.includes("closeOrderHistory")) {
+      el.addEventListener("click", (e) => { e.preventDefault(); closeOrderHistory(); });
+      el.removeAttribute("onclick");
+      return;
+    }
+    if (v.includes("fillFromLastOrder")) {
+      el.addEventListener("click", (e) => { e.preventDefault(); fillFromLastOrder(); });
+      el.removeAttribute("onclick");
+      return;
+    }
+  });
+}
+
 /* ================= INIT ================= */
 document.addEventListener("DOMContentLoaded", () => {
   showHome();
   loadStores();
+  bindDelegatedClicks();
+  rebindInlineButtons();
 
+  // пересчёт доставки при смене района
   document.getElementById("district")
     ?.addEventListener("change", updateCart);
 
+  // показать карту Fast Bank при выборе перевода
   const paymentSelect = document.getElementById("payment");
   const cardInfo = document.getElementById("card-info");
 
@@ -861,5 +983,12 @@ document.addEventListener("DOMContentLoaded", () => {
           ? "block"
           : "none";
     });
+  }
+
+  // поиск (если есть поле)
+  const si = document.getElementById("searchInput");
+  if (si && !si.__bound) {
+    si.__bound = true;
+    si.addEventListener("input", applySearch);
   }
 });
