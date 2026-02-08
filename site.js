@@ -814,4 +814,158 @@ document.addEventListener("DOMContentLoaded", () => {
       addToCart(sid, name, price, makeQtyId(sid, name));
     }
   });
+   /* ================= MULTI-LANGUAGE (hy default) ================= */
+const LANG_KEY = "meronq_lang_v1";
+const SUPPORTED_LANGS = ["hy", "ru", "en"];
+
+const I18N = {
+  hy: {
+    brand_title: "Մերոնք",
+    search: "Որոնել…",
+    shops_title: "Խանութներ",
+    cart_title: "Զամբյուղ",
+    name: "Անուն",
+    phone: "Հեռախոս",
+    address: "Հասցե",
+    district: "Շրջան",
+    payment: "Վճարում",
+    comment: "Մեկնաբանություն",
+    send_order: "📲 Ուղարկել պատվերը",
+    sending: "ՈՒՂԱՐԿՈՒՄ ԵՆՔ…",
+    order_sent: "✅ Պատվերը ուղարկվեց!",
+    order_error: "❌ Պատվերի սխալ՝ ",
+    fill_required: "Լրացրեք անունը, հեռախոսը և հասցեն",
+    choose_district: "Ընտրեք շրջանը",
+    cart_empty: "Զամբյուղը դատարկ է",
+    name_ph: "Անուն",
+    phone_ph: "Հեռախոս",
+    address_ph: "Փողոց, տուն, մուտք",
+    comment_ph: "Օրինակ՝ դուռը զանգել",
+  },
+  ru: {
+    brand_title: "Меронк",
+    search: "Поиск…",
+    shops_title: "Магазины",
+    cart_title: "Корзина",
+    name: "Имя",
+    phone: "Телефон",
+    address: "Адрес",
+    district: "Район",
+    payment: "Оплата",
+    comment: "Комментарий",
+    send_order: "📲 Отправить заказ",
+    sending: "ОТПРАВЛЯЕМ…",
+    order_sent: "✅ Заказ отправлен!",
+    order_error: "❌ Ошибка заказа: ",
+    fill_required: "Заполни имя, телефон и адрес",
+    choose_district: "Выбери район",
+    cart_empty: "Корзина пуста",
+    name_ph: "Имя",
+    phone_ph: "Телефон",
+    address_ph: "Улица, дом, подъезд",
+    comment_ph: "Например: позвонить в дверь",
+  },
+  en: {
+    brand_title: "Meronq",
+    search: "Search…",
+    shops_title: "Stores",
+    cart_title: "Cart",
+    name: "Name",
+    phone: "Phone",
+    address: "Address",
+    district: "District",
+    payment: "Payment",
+    comment: "Comment",
+    send_order: "📲 Place order",
+    sending: "SENDING…",
+    order_sent: "✅ Order sent!",
+    order_error: "❌ Order error: ",
+    fill_required: "Please enter name, phone, and address",
+    choose_district: "Please choose a district",
+    cart_empty: "Cart is empty",
+    name_ph: "Name",
+    phone_ph: "Phone",
+    address_ph: "Street, building, entrance",
+    comment_ph: "e.g., ring the doorbell",
+  },
+};
+
+let currentLang = "hy";
+
+function getLang() {
+  const saved = (localStorage.getItem(LANG_KEY) || "").trim();
+  if (SUPPORTED_LANGS.includes(saved)) return saved;
+
+  // Авто по языку устройства (если армянский — ставим hy)
+  const nav = (navigator.language || "").toLowerCase();
+  if (nav.startsWith("hy")) return "hy";
+  if (nav.startsWith("ru")) return "ru";
+  return "hy"; // по умолчанию армянский
+}
+
+function t(key) {
+  return (I18N[currentLang] && I18N[currentLang][key]) || (I18N.hy[key]) || key;
+}
+
+function applyI18n() {
+  // Тексты
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    const key = el.getAttribute("data-i18n");
+    if (!key) return;
+    el.textContent = t(key);
+  });
+
+  // Плейсхолдеры
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+    const key = el.getAttribute("data-i18n-placeholder");
+    if (!key) return;
+    el.setAttribute("placeholder", t(key));
+  });
+
+  // Визуально подсветим активный язык
+  const switchBox = document.getElementById("lang-switch");
+  if (switchBox) {
+    switchBox.querySelectorAll("button[data-lang]").forEach((b) => {
+      b.style.opacity = (b.getAttribute("data-lang") === currentLang) ? "1" : "0.55";
+      b.style.border = (b.getAttribute("data-lang") === currentLang) ? "1px solid rgba(212,175,55,.6)" : "1px solid rgba(255,255,255,.15)";
+      b.style.background = "rgba(255,255,255,.06)";
+      b.style.color = "var(--text-main)";
+      b.style.borderRadius = "999px";
+      b.style.padding = "8px 12px";
+      b.style.cursor = "pointer";
+      b.style.fontWeight = "700";
+    });
+  }
+}
+
+function setLang(lang) {
+  if (!SUPPORTED_LANGS.includes(lang)) return;
+  currentLang = lang;
+  localStorage.setItem(LANG_KEY, lang);
+  applyI18n();
+
+  // обновим кнопку отправки, если она есть
+  const btn = document.querySelector("[data-order-btn]");
+  if (btn && !btn.disabled) btn.textContent = t("send_order");
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  currentLang = getLang();
+  applyI18n();
+
+  // клики по языкам
+  document.getElementById("lang-switch")?.addEventListener("click", (e) => {
+    const b = e.target?.closest?.("button[data-lang]");
+    if (!b) return;
+    setLang(b.getAttribute("data-lang"));
+  });
+});
+
+/* === интеграция с placeOrder (если у тебя есть showOrderMsg) ===
+   Просто используй t(...) в твоём placeOrder:
+   btn.textContent = t("sending");
+   showOrderMsg(t("order_sent"), "success");
+   showOrderMsg(t("order_error") + e.message, "error");
+*/
+
 });
