@@ -1,21 +1,27 @@
 /* =========================================================
    MERONQ / ARTIK FOOD — site.js (CSP-SAFE + COMPACT + FIXED)
-   ✅ Магазин → Категории → Товары категории
-   ✅ Иконки категорий
-   ✅ Поиск: магазины / категории / товары (по контексту)
-   ✅ +/- без inline onclick (CSP safe)
-   ✅ Фото: .jpg -> .png -> placeholder (без inline onerror)
-   ✅ Заказ → Worker /orders
-   ✅ История заказов (localStorage)
+   ✅ Магазины грузятся стабильно (fallback + cache-bust)
+   ✅ Компактнее: магазины/категории/товары
+   ✅ Темный фон (без правки CSS/HTML)
+   ✅ Фото: .jpg OR .png (через HEAD, без 404 spam)
+   ✅ Заказ → Worker /orders (без ключа)
+   ✅ История заказов localStorage (fix: unshift null)
+   ✅ CSP-safe: без inline onclick
 ========================================================= */
 
 /* ================= PATHS ================= */
 const BASE_PATH = new URL("./", location.href).pathname;
-const STORES_INDEX_URL = BASE_PATH + "stores/index.json";
+
+// Пробуем несколько вариантов путей (регистрозависимость GitHub Pages) + cache-bust
+const STORES_INDEX_CANDIDATES = [
+  BASE_PATH + "stores/index.json",
+  BASE_PATH + "Stores/index.json",
+  "/meronq/stores/index.json",
+  "/meronq/Stores/index.json",
+];
 
 /* ================= WORKER ================= */
 const WORKER_URL = "https://meronq.edulik844.workers.dev/orders";
-
 
 /* ================= STATE ================= */
 let stores = {};
@@ -90,8 +96,6 @@ window.goHome = openShops;
 window.goBack = goBack;
 window.openShops = openShops;
 
-window.toggleTheme = () => document.body.classList.toggle("light-theme");
-
 /* ================= CATEGORY ICONS ================= */
 const CATEGORY_ICONS = {
   "Шаурма": "🥙",
@@ -110,86 +114,116 @@ function catIcon(name) {
   return CATEGORY_ICONS[name] || "📦";
 }
 
-/* ================= IMAGES (jpg -> png) ================= */
+/* ================= IMAGES (jpg OR png, no 404 spam) ================= */
+const IMAGE_EXTS = [".jpg", ".png"];
+const imageExistsCache = new Map();   // url -> true/false
+const resolvedImageCache = new Map(); // basePathNoExt -> resolvedUrl
+
+async function urlExists(url) {
+  if (imageExistsCache.has(url)) return imageExistsCache.get(url);
+  try {
+    const r = await fetch(url, { method: "HEAD", cache: "force-cache" });
+    const ok = r.ok;
+    imageExistsCache.set(url, ok);
+    return ok;
+  } catch {
+    imageExistsCache.set(url, false);
+    return false;
+  }
+}
+
+async function resolveImageUrl(basePathNoExt) {
+  if (resolvedImageCache.has(basePathNoExt)) return resolvedImageCache.get(basePathNoExt);
+  for (const ext of IMAGE_EXTS) {
+    const url = asset(basePathNoExt + ext);
+    // eslint-disable-next-line no-await-in-loop
+    if (await urlExists(url)) {
+      resolvedImageCache.set(basePathNoExt, url);
+      return url;
+    }
+  }
+  resolvedImageCache.set(basePathNoExt, "");
+  return "";
+}
+
 function setProductImage(imgElementId, basePathNoExt) {
   const img = document.getElementById(imgElementId);
   if (!img) return;
 
-  const jpgUrl = asset(basePathNoExt + ".jpg");
-  const pngUrl = asset(basePathNoExt + ".png");
+  // placeholder
+  img.src =
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23222' width='80' height='80'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-size='24'%3E⏳%3C/text%3E%3C/svg%3E";
 
-  // 1) пробуем jpg
-  img.onerror = () => {
-    // 2) если jpg нет — пробуем png
-    img.onerror = () => {
-      // 3) если и png нет — заглушка
-      img.onerror = null;
+  resolveImageUrl(basePathNoExt).then((url) => {
+    if (url) img.src = url;
+    else {
       img.src =
         "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23333' width='80' height='80'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-size='26'%3E📦%3C/text%3E%3C/svg%3E";
-    };
-    img.src = pngUrl;
-  };
-
-  img.src = jpgUrl;
+    }
+  });
 }
 
 /* ================= STORES ================= */
+async function fetchJsonFirstOk(urls) {
+  const bust = `v=${Date.now()}`;
+  let lastErr = null;
+
+  for (const u of urls) {
+    const url = u.includes("?") ? `${u}&${bust}` : `${u}?${bust}`;
+    try {
+      const r = await fetch(url, { cache: "no-store" });
+      if (!r.ok) {
+        lastErr = new Error(`${u} HTTP ${r.status}`);
+        continue;
+      }
+      return await r.json();
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error("stores index not reachable");
+}
+
 async function loadStores() {
   const list = $("shops-list");
   const loading = $("loading-shops");
   if (!list) return;
 
   try {
-    const r = await fetch(STORES_INDEX_URL, { cache: "no-store" });
-    if (!r.ok) throw new Error(`stores/index.json HTTP ${r.status}`);
-    const data = await r.json();
+    const data = await fetchJsonFirstOk(STORES_INDEX_CANDIDATES);
 
     if (loading) loading.style.display = "none";
     list.innerHTML = "";
-    stores = {};
 
     (data.stores || []).forEach((s) => {
       if (!s?.enabled) return;
       stores[s.id] = s;
 
-      const card = document.createElement("div");
-      card.className = "card";
-      card.addEventListener("click", () => openStore(s.id));
+      const el = document.createElement("div");
+      el.className = "card shop-card";
+      el.dataset.storeId = s.id;
 
-      // CSP-safe: создаём img как элемент, без inline onerror
-      const wrap = document.createElement("div");
-      wrap.style.cssText = "display:flex;flex-direction:column;align-items:center;gap:10px";
+      const logoSrc = asset(s.logo);
+      el.innerHTML = `
+        <div class="shop-card-inner">
+          <img class="shop-logo" src="${logoSrc}" alt="${escapeHtml(s.name)}">
+          <div class="shop-name">${escapeHtml(s.name)}</div>
+          <div class="shop-hours">🕙 ${escapeHtml(s.workingHours?.open || "09:00")} - ${escapeHtml(s.workingHours?.close || "22:00")}</div>
+        </div>
+      `;
 
-      const img = document.createElement("img");
-      img.src = asset(s.logo);
-      img.alt = s.name || "";
-      img.style.cssText =
-        "width:72px;height:72px;border-radius:16px;object-fit:cover;" +
-        "box-shadow:var(--shadow-soft);background:rgba(0,0,0,0.06)";
-      img.onerror = () => { img.style.display = "none"; };
-
-      const title = document.createElement("div");
-      title.style.fontWeight = "700";
-      title.textContent = s.name || "";
-
-      const hours = document.createElement("div");
-      hours.style.cssText = "font-size:12px;color:var(--text-muted)";
-      hours.textContent = `🕙 ${s.workingHours?.open || "09:00"} - ${s.workingHours?.close || "22:00"}`;
-
-      wrap.appendChild(img);
-      wrap.appendChild(title);
-      wrap.appendChild(hours);
-      card.appendChild(wrap);
-
-      list.appendChild(card);
+      el.addEventListener("click", () => openStore(s.id));
+      list.appendChild(el);
     });
 
     if (!list.children.length) {
       list.innerHTML = `<div class="loading">Магазины не найдены</div>`;
     }
   } catch (e) {
-    console.error(e);
-    if (loading) loading.innerHTML = `<div style="color:#ff6b6b;">❌ ${escapeHtml(e.message)}</div>`;
+    console.error("loadStores error:", e);
+    if (loading) {
+      loading.innerHTML = `<div style="color:#ff6b6b;">❌ Не удалось загрузить магазины.<br>Проверь файл <b>stores/index.json</b> в репозитории.<br>Ошибка: ${escapeHtml(e?.message || "unknown")}</div>`;
+    }
   }
 }
 
@@ -203,7 +237,7 @@ async function openStore(storeId) {
   currentCategoryItems = [];
 
   showStore();
-  if ($("store-title")) $("store-title").textContent = store.name || "";
+  if ($("store-title")) $("store-title").textContent = store.name;
 
   $("store-products") && ($("store-products").innerHTML = "");
   $("categories-list") && ($("categories-list").innerHTML = "");
@@ -261,12 +295,11 @@ function showCategories(storeId) {
     const card = document.createElement("div");
     card.className = "card";
     card.style.textAlign = "left";
-    card.style.padding = "12px"; // компактнее
     card.innerHTML = `
       <div style="display:flex;align-items:center;gap:10px">
-        <div style="font-size:26px;line-height:1">${catIcon(cat)}</div>
+        <div style="font-size:24px;line-height:1">${catIcon(cat)}</div>
         <div style="flex:1">
-          <div style="font-weight:700;font-size:14px">${escapeHtml(cat)}</div>
+          <div style="font-weight:800;font-size:14px">${escapeHtml(cat)}</div>
           <div style="margin-top:4px;font-size:12px;color:var(--text-muted)">Товаров: ${count}</div>
         </div>
       </div>
@@ -293,141 +326,6 @@ function showCategoryProducts(storeId, category) {
   renderCategoryList(storeId, category, items);
   scrollTo(0, 0);
 }
-
-/* ====== render product list (CSP-safe) ====== */
-function makeQtyId(storeId, productName) {
-  const enc = btoa(unescape(encodeURIComponent(`${storeId}::${productName}`))).replace(/=+$/g, "");
-  return `qty-${enc}`;
-}
-
-function renderCategoryList(storeId, category, items) {
-  const productsBox = $("store-products");
-  if (!productsBox) return;
-
-  productsBox.innerHTML = "";
-
-  const h = document.createElement("h3");
-  h.style.margin = "14px 0 6px";
-  h.style.color = "var(--accent-gold)";
-  h.style.fontSize = "16px";
-  h.textContent = category;
-  productsBox.appendChild(h);
-
-  if (!items.length) {
-    productsBox.innerHTML += `<div class="loading">Ничего не найдено</div>`;
-    return;
-  }
-
-  items.forEach((p) => {
-    const base = (p.image || "").trim() || "no-image";
-    const imgBase = `stores/${storeId}/images/${base}`;
-    const imgElId = `img-${makeQtyId(storeId, p.name)}`;
-
-    const qtyId = makeQtyId(storeId, p.name);
-    const nameEnc = encodeURIComponent(String(p.name || ""));
-    const price = Number(p.price || 0);
-
-    const row = document.createElement("div");
-    row.className = "product";
-    row.style.gap = "10px";
-
-    row.innerHTML = `
-      <img id="${imgElId}"
-           style="width:62px;height:62px;border-radius:14px;object-fit:cover;flex:0 0 62px"
-           src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23222' width='80' height='80'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' font-size='24'%3E⏳%3C/text%3E%3C/svg%3E"
-           alt="${escapeHtml(p.name)}">
-
-      <div style="flex:1;min-width:0">
-        <h4 style="margin:0 0 4px;font-size:14px;line-height:1.2">${escapeHtml(p.name)}</h4>
-        <p style="margin:0;font-size:12px;color:var(--text-muted);line-height:1.25">
-          ${escapeHtml(p.desc || "")}${p.desc ? " • " : ""}<span style="color:var(--text-main)">${amd(price)}</span>
-        </p>
-      </div>
-
-      <div class="qty-controls" style="gap:6px">
-        <button style="width:30px;height:30px"
-                data-act="minus" data-store="${storeId}" data-name="${nameEnc}" data-price="${price}" data-qty="${qtyId}">−</button>
-        <span class="qty-number" style="min-width:18px;font-size:13px" id="${qtyId}">${getQty(storeId, p.name)}</span>
-        <button style="width:30px;height:30px"
-                data-act="plus" data-store="${storeId}" data-name="${nameEnc}" data-price="${price}" data-qty="${qtyId}">+</button>
-      </div>
-    `;
-
-    productsBox.appendChild(row);
-    setProductImage(imgElId, imgBase);
-  });
-
-  updateCart();
-}
-
-/* ================= SEARCH ================= */
-function applySearch() {
-  const q = ($("searchInput")?.value || "").trim().toLowerCase();
-  const active = q.length >= 2;
-
-  // HOME: фильтр магазинов
-  if (!currentStoreId) {
-    filterShops(active ? q : "");
-    return;
-  }
-
-  // STORE: внутри категории -> фильтруем товары
-  if (currentStoreId && currentCategory) {
-    const items = currentCategoryItems || [];
-    const filtered = !active
-      ? items
-      : items.filter((p) =>
-          (p.name || "").toLowerCase().includes(q) ||
-          (p.desc || "").toLowerCase().includes(q)
-        );
-
-    renderCategoryList(currentStoreId, currentCategory, filtered);
-    return;
-  }
-
-  // STORE: на экране категорий -> фильтруем категории
-  if (currentStoreId && !currentCategory) {
-    filterCategories(active ? q : "");
-  }
-}
-
-function filterShops(q) {
-  const list = $("shops-list");
-  if (!list) return;
-
-  const cards = Array.from(list.children);
-  if (!q) {
-    cards.forEach((c) => (c.style.display = ""));
-    return;
-  }
-
-  cards.forEach((c) => {
-    const txt = (c.textContent || "").toLowerCase();
-    c.style.display = txt.includes(q) ? "" : "none";
-  });
-
-  const sec = document.getElementById("shops");
-  if (sec) sec.scrollIntoView({ behavior: "smooth" });
-}
-
-function filterCategories(q) {
-  const catList = $("categories-list");
-  if (!catList) return;
-
-  const cards = Array.from(catList.children);
-  if (!q) {
-    cards.forEach((c) => (c.style.display = ""));
-    return;
-  }
-
-  cards.forEach((c) => {
-    const txt = (c.textContent || "").toLowerCase();
-    c.style.display = txt.includes(q) ? "" : "none";
-  });
-}
-
-window.applySearch = applySearch;
-window.openStore = openStore;
 
 /* ================= CART ================= */
 function getQty(storeId, name) {
@@ -483,9 +381,8 @@ function updateCart() {
 
     const header = document.createElement("div");
     header.style.margin = "10px 0 6px";
-    header.style.fontWeight = "700";
+    header.style.fontWeight = "800";
     header.style.color = "var(--accent-gold)";
-    header.style.fontSize = "13px";
     header.textContent = storeName;
     box.appendChild(header);
 
@@ -493,22 +390,17 @@ function updateCart() {
       const it = cart[sid][name];
       sum += it.q * it.p;
 
-      const nameEnc = encodeURIComponent(String(name || ""));
-      const price = Number(it.p || 0);
-
       const row = document.createElement("div");
       row.className = "cart-item";
       row.innerHTML = `
         <div style="flex:1;text-align:left;">
-          <div style="font-weight:600;font-size:13px">${escapeHtml(name)}</div>
-          <span style="font-size:12px;color:var(--text-muted)">${amd(price)} × ${it.q} = ${amd(price * it.q)}</span>
+          <div style="font-weight:700;">${escapeHtml(name)}</div>
+          <span style="color:var(--text-muted);font-size:12px">${amd(it.p)} × ${it.q} = ${amd(it.p * it.q)}</span>
         </div>
-        <div class="qty-controls" style="gap:6px">
-          <button style="width:30px;height:30px"
-                  data-act="minus" data-store="${sid}" data-name="${nameEnc}" data-price="${price}">−</button>
-          <span class="qty-number" style="min-width:18px;font-size:13px">${it.q}</span>
-          <button style="width:30px;height:30px"
-                  data-act="plus" data-store="${sid}" data-name="${nameEnc}" data-price="${price}">+</button>
+        <div class="qty-controls">
+          <button data-act="minus" data-sid="${escapeHtml(sid)}" data-name="${escapeHtml(name)}">−</button>
+          <span class="qty-number">${it.q}</span>
+          <button data-act="plus" data-sid="${escapeHtml(sid)}" data-name="${escapeHtml(name)}" data-price="${it.p}">+</button>
         </div>
       `;
       box.appendChild(row);
@@ -527,8 +419,37 @@ function updateCart() {
   $("grand-total") && ($("grand-total").textContent = `Итого: ${amd(sum + d)}`);
 }
 
-window.addToCart = addToCart;
-window.changeQty = changeQty;
+/* ================= UI MESSAGE FOR ORDER ================= */
+function showOrderMsg(text, type = "info") {
+  let box = document.getElementById("order-status");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "order-status";
+    box.style.marginTop = "10px";
+    box.style.padding = "10px 12px";
+    box.style.borderRadius = "14px";
+    box.style.fontSize = "13px";
+    box.style.fontWeight = "700";
+    box.style.textAlign = "center";
+    const form = document.querySelector(".order-form") || document.body;
+    form.appendChild(box);
+  }
+
+  if (type === "error") {
+    box.style.border = "1px solid rgba(255,107,107,.35)";
+    box.style.background = "rgba(255,107,107,.10)";
+    box.style.color = "#ffb3b3";
+  } else if (type === "success") {
+    box.style.border = "1px solid rgba(46,204,113,.35)";
+    box.style.background = "rgba(46,204,113,.10)";
+    box.style.color = "#b7f5c8";
+  } else {
+    box.style.border = "1px solid rgba(255,255,255,.15)";
+    box.style.background = "rgba(255,255,255,.06)";
+    box.style.color = "var(--text-main)";
+  }
+  box.textContent = text;
+}
 
 /* ================= ORDERS ================= */
 function buildOrderPayload() {
@@ -578,32 +499,8 @@ function buildOrderPayload() {
   };
 }
 
-function showOrderMsg(text, kind = "error") {
-  let box = document.getElementById("order-status");
-  if (!box) {
-    box = document.createElement("div");
-    box.id = "order-status";
-    const form = document.querySelector(".order-form") || document.body;
-    form.appendChild(box);
-  }
-
-  if (kind === "ok") {
-    box.style.cssText =
-      "margin-top:10px;padding:10px 12px;border-radius:14px;" +
-      "border:1px solid rgba(46,204,113,.35);background:rgba(46,204,113,.10);" +
-      "color:#bff3d2;font-weight:700;font-size:13px;";
-  } else {
-    box.style.cssText =
-      "margin-top:10px;padding:10px 12px;border-radius:14px;" +
-      "border:1px solid rgba(255,107,107,.35);background:rgba(255,107,107,.10);" +
-      "color:#ffb3b3;font-weight:600;font-size:13px;";
-  }
-  box.textContent = text;
-}
-
 async function placeOrder() {
-  // убираем прошлое сообщение
-  document.getElementById("order-status")?.remove();
+  const btn = document.querySelector("[data-order-btn]") || document.querySelector(".order-form button") || null;
 
   const built = buildOrderPayload();
   if (built.error) {
@@ -611,31 +508,33 @@ async function placeOrder() {
     return;
   }
 
-  const btn = document.querySelector(".order-form button") || null;
   if (btn) {
     btn.disabled = true;
     btn.textContent = "ОТПРАВЛЯЕМ…";
   }
 
   try {
-   const r = await fetch(WORKER_URL, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify(built.payload),
-});
+    const r = await fetch(WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(built.payload),
+    });
 
+    const text = await r.text();
+    let j = {};
+    try { j = JSON.parse(text); } catch {}
 
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    if (!r.ok || !j.ok) {
+      throw new Error(j?.error || `HTTP ${r.status}: ${text.slice(0, 200)}`);
+    }
 
+    // ✅ сохраняем в историю (без падений)
     saveOrderToLocal(built.payload, j);
 
-    showOrderMsg("✅ Заказ отправлен!", "ok");
-
+    showOrderMsg("✅ Заказ отправлен!", "success");
     cart = {};
     updateCart();
+
     if ($("comment")) $("comment").value = "";
 
     openShops();
@@ -650,7 +549,73 @@ async function placeOrder() {
   }
 }
 
+window.openStore = openStore;
+window.addToCart = addToCart;
+window.changeQty = changeQty;
 window.placeOrder = placeOrder;
+
+/* ================= SEARCH ================= */
+function applySearch() {
+  const q = ($("searchInput")?.value || "").trim().toLowerCase();
+  const active = q.length >= 2;
+
+  if (!currentStoreId) {
+    filterShops(active ? q : "");
+    return;
+  }
+
+  if (currentStoreId && currentCategory) {
+    const items = currentCategoryItems || [];
+    const filtered = !active
+      ? items
+      : items.filter((p) =>
+          (p.name || "").toLowerCase().includes(q) ||
+          (p.desc || "").toLowerCase().includes(q)
+        );
+
+    renderCategoryList(currentStoreId, currentCategory, filtered);
+    return;
+  }
+
+  if (currentStoreId && !currentCategory) {
+    filterCategories(active ? q : "");
+  }
+}
+
+function filterShops(q) {
+  const list = $("shops-list");
+  if (!list) return;
+
+  const cards = Array.from(list.children);
+  if (!q) {
+    cards.forEach((c) => (c.style.display = ""));
+    return;
+  }
+  cards.forEach((c) => {
+    const txt = (c.textContent || "").toLowerCase();
+    c.style.display = txt.includes(q) ? "" : "none";
+  });
+
+  const sec = document.getElementById("shops");
+  if (sec) sec.scrollIntoView({ behavior: "smooth" });
+}
+
+function filterCategories(q) {
+  const catList = $("categories-list");
+  if (!catList) return;
+
+  const cards = Array.from(catList.children);
+  if (!q) {
+    cards.forEach((c) => (c.style.display = ""));
+    return;
+  }
+  cards.forEach((c) => {
+    const txt = (c.textContent || "").toLowerCase();
+    c.style.display = txt.includes(q) ? "" : "none";
+  });
+}
+
+window.applySearch = applySearch;
 
 /* ================= CSV PARSE ================= */
 function detectDelimiter(headerLine) {
@@ -697,12 +662,70 @@ function parseMenuToCategories(csvText) {
   return categories;
 }
 
+/* ================= PRODUCT RENDER (no inline onclick) ================= */
+function makeQtyId(storeId, productName) {
+  const enc = btoa(unescape(encodeURIComponent(`${storeId}::${productName}`))).replace(/=+$/g, "");
+  return `qty-${enc}`;
+}
+
+function renderCategoryList(storeId, category, items) {
+  const productsBox = $("store-products");
+  if (!productsBox) return;
+
+  productsBox.innerHTML = "";
+
+  const h = document.createElement("h3");
+  h.style.margin = "16px 0 8px";
+  h.style.color = "var(--accent-gold)";
+  h.style.fontSize = "14px";
+  h.style.fontWeight = "900";
+  h.textContent = category;
+  productsBox.appendChild(h);
+
+  if (!items.length) {
+    productsBox.innerHTML += `<div class="loading">Ничего не найдено</div>`;
+    return;
+  }
+
+  items.forEach((p) => {
+    const base = (p.image || "").trim() || "no-image";
+    const imgBase = `stores/${storeId}/images/${base}`;
+    const qtyId = makeQtyId(storeId, p.name);
+    const imgElId = `img-${qtyId}`;
+
+    const row = document.createElement("div");
+    row.className = "product";
+    row.innerHTML = `
+      <img id="${imgElId}" alt="${escapeHtml(p.name)}">
+      <div style="flex:1">
+        <h4>${escapeHtml(p.name)}</h4>
+        <p>${escapeHtml(p.desc || "")}${p.desc ? " • " : ""}${amd(p.price)}</p>
+      </div>
+      <div class="qty-controls">
+        <button data-act="minus" data-sid="${escapeHtml(storeId)}" data-name="${escapeHtml(p.name)}">−</button>
+        <span class="qty-number" id="${qtyId}">${getQty(storeId, p.name)}</span>
+        <button data-act="plus" data-sid="${escapeHtml(storeId)}" data-name="${escapeHtml(p.name)}" data-price="${p.price}">+</button>
+      </div>
+    `;
+    productsBox.appendChild(row);
+
+    setProductImage(imgElId, imgBase);
+  });
+
+  updateCart();
+}
+
 /* ================= ORDER HISTORY (LOCALSTORAGE) ================= */
 const LS_HISTORY_KEY = "meronq_order_history_v1";
 const LS_LAST_ORDER_KEY = "meronq_last_order_v1";
 
 function safeParse(str, fallback) {
-  try { return JSON.parse(str); } catch { return fallback; }
+  try {
+    const v = JSON.parse(str);
+    return (v === null || v === undefined) ? fallback : v;
+  } catch {
+    return fallback;
+  }
 }
 
 function saveOrderToLocal(orderData, resultFromServer) {
@@ -724,271 +747,71 @@ function saveOrderToLocal(orderData, resultFromServer) {
   localStorage.setItem(LS_LAST_ORDER_KEY, JSON.stringify(record));
 
   let prev = safeParse(localStorage.getItem(LS_HISTORY_KEY), []);
-if (!Array.isArray(prev)) prev = [];   // ← ключевая строка
-prev.unshift(record);
-localStorage.setItem(LS_HISTORY_KEY, JSON.stringify(prev.slice(0, 30)));
-
-
-function getHistory() {
-  return safeParse(localStorage.getItem(LS_HISTORY_KEY), []);
-}
-
-function closeOrderHistory() {
-  document.getElementById("history-modal")?.classList.add("hidden");
-}
-
-function showOrderHistory() {
-  const modal = document.getElementById("history-modal");
-  const list = document.getElementById("history-list");
-  if (!modal || !list) return;
-
-  const history = getHistory();
-
-  if (!history.length) {
-    list.innerHTML = `<div style="padding:16px;color:var(--text-muted);text-align:center">История пуста</div>`;
-  } else {
-    list.innerHTML = history.map((h, idx) => {
-      const date = new Date(h.at);
-      const dt = isNaN(date.getTime()) ? h.at : date.toLocaleString();
-      const itemsTotal = h?.totals?.itemsTotal ?? null;
-      const delivery = h?.totals?.delivery ?? null;
-      const grand = h?.totals?.grandTotal ?? null;
-
-      const productsText = (h.products || []).slice(0, 12).map(p => {
-        const nm = escapeHtml(p.name || "");
-        const q = Number(p.quantity || 0);
-        const st = escapeHtml(p.storeName || p.storeKey || "");
-        return `<div style="color:var(--text-muted);font-size:13px">• ${nm} × ${q} <span style="opacity:.8">(${st})</span></div>`;
-      }).join("");
-
-      return `
-        <div style="
-          border:1px solid var(--border-glass);
-          background:linear-gradient(180deg,var(--bg-glass),rgba(255,255,255,0.02));
-          border-radius:16px;
-          padding:12px;
-          margin-bottom:10px;
-        ">
-          <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
-            <div style="font-weight:700;color:var(--text-main)">
-              Заказ ${h.id ? `#${escapeHtml(String(h.id))}` : `№${history.length - idx}`}
-            </div>
-            <div style="color:var(--text-muted);font-size:13px">${escapeHtml(dt)}</div>
-          </div>
-
-          <div style="margin-top:6px;color:var(--text-muted);font-size:13px">
-            👤 ${escapeHtml(h.customer.name)} • 📞 ${escapeHtml(h.customer.phone)}
-          </div>
-          <div style="margin-top:4px;color:var(--text-muted);font-size:13px">
-            📍 ${escapeHtml(h.customer.address)} • 🏙 ${escapeHtml(h.customer.district)} • 💳 ${escapeHtml(h.customer.payment)}
-          </div>
-
-          <div style="margin-top:8px">
-            ${productsText || `<div style="color:var(--text-muted);font-size:13px">Товары не сохранены</div>`}
-          </div>
-
-          <div style="margin-top:10px;font-weight:700;color:var(--accent-gold)">
-            ${grand != null ? `Итого: ${Number(grand).toLocaleString()} AMD` : ""}
-            <span style="font-weight:500;color:var(--text-muted);font-size:13px;margin-left:10px">
-              ${itemsTotal != null ? `Товары: ${Number(itemsTotal).toLocaleString()} AMD` : ""}
-              ${delivery != null ? ` • Доставка: ${Number(delivery).toLocaleString()} AMD` : ""}
-            </span>
-          </div>
-
-          <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px">
-            <button data-history-act="use" data-index="${idx}" style="
-              padding:9px 12px;border-radius:999px;
-              border:1px solid var(--border-glass);
-              background:var(--bg-glass); color:var(--text-main);
-              cursor:pointer;font-weight:600
-            ">Заполнить форму</button>
-          </div>
-        </div>
-      `;
-    }).join("");
-  }
-
-  modal.classList.remove("hidden");
-}
-
-function clearOrderHistory() {
-  localStorage.removeItem(LS_HISTORY_KEY);
-  showOrderHistory();
-}
-
-function fillOrderForm(h) {
-  const c = h.customer || {};
-  const setVal = (id, val) => {
-    const el = document.getElementById(id);
-    if (el && val != null) el.value = val;
-  };
-
-  setVal("name", c.name);
-  setVal("phone", c.phone);
-  setVal("address", c.address);
-  setVal("district", c.district);
-  setVal("payment", c.payment);
-  setVal("comment", c.comment);
-
-  const paymentSelect = document.getElementById("payment");
-  const cardInfo = document.getElementById("card-info");
-  if (paymentSelect && cardInfo) {
-    cardInfo.style.display = paymentSelect.value.includes("Перевод") ? "block" : "none";
-  }
-}
-
-function useHistoryOrder(index) {
-  const history = getHistory();
-  const h = history[index];
-  if (!h) return;
-
-  fillOrderForm(h);
-  closeOrderHistory();
-  document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
-}
-
-function fillFromLastOrder() {
-  const h = safeParse(localStorage.getItem(LS_LAST_ORDER_KEY), null);
-  if (!h) return showOrderMsg("Нет сохранённых данных последнего заказа", "error");
-  fillOrderForm(h);
-  document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
-}
-
-window.showOrderHistory = showOrderHistory;
-window.closeOrderHistory = closeOrderHistory;
-window.clearOrderHistory = clearOrderHistory;
-window.useHistoryOrder = useHistoryOrder;
-window.fillFromLastOrder = fillFromLastOrder;
-
-/* ================= CSP-SAFE EVENTS ================= */
-function bindDelegatedClicks() {
-  // +/- в товарах
-  const productsBox = $("store-products");
-  if (productsBox && !productsBox.__bound) {
-    productsBox.__bound = true;
-    productsBox.addEventListener("click", (e) => {
-      const btn = e.target.closest("button[data-act]");
-      if (!btn) return;
-
-      const act = btn.dataset.act;
-      const storeId = btn.dataset.store;
-      const name = decodeURIComponent(btn.dataset.name || "");
-      const price = Number(btn.dataset.price || 0);
-      const qtyId = btn.dataset.qty || "";
-
-      if (!storeId || !name) return;
-
-      if (act === "plus") addToCart(storeId, name, price, qtyId);
-      if (act === "minus") changeQty(storeId, name, -1, qtyId);
-    });
-  }
-
-  // +/- в корзине
-  const cartBox = $("global-cart-items");
-  if (cartBox && !cartBox.__bound) {
-    cartBox.__bound = true;
-    cartBox.addEventListener("click", (e) => {
-      const btn = e.target.closest("button[data-act]");
-      if (!btn) return;
-
-      const act = btn.dataset.act;
-      const storeId = btn.dataset.store;
-      const name = decodeURIComponent(btn.dataset.name || "");
-      const price = Number(btn.dataset.price || 0);
-
-      if (!storeId || !name) return;
-
-      if (act === "plus") addToCart(storeId, name, price, makeQtyId(storeId, name));
-      if (act === "minus") changeQty(storeId, name, -1, makeQtyId(storeId, name));
-    });
-  }
-
-  // история (кнопка "Заполнить форму")
-  const historyList = document.getElementById("history-list");
-  if (historyList && !historyList.__bound) {
-    historyList.__bound = true;
-    historyList.addEventListener("click", (e) => {
-      const btn = e.target.closest("button[data-history-act='use']");
-      if (!btn) return;
-      const idx = parseInt(btn.dataset.index || "0", 10) || 0;
-      useHistoryOrder(idx);
-    });
-  }
-}
-
-// Если в HTML были inline onclick — перевесим на нормальные
-function rebindInlineButtons() {
-  const all = Array.from(document.querySelectorAll("[onclick]"));
-  all.forEach((el) => {
-    const v = String(el.getAttribute("onclick") || "");
-    // order
-    if (v.includes("placeOrder")) {
-      el.addEventListener("click", (e) => { e.preventDefault(); placeOrder(); });
-      el.removeAttribute("onclick");
-      return;
-    }
-    // back/home/theme/history
-    if (v.includes("goBack")) {
-      el.addEventListener("click", (e) => { e.preventDefault(); goBack(); });
-      el.removeAttribute("onclick");
-      return;
-    }
-    if (v.includes("goHome") || v.includes("openShops")) {
-      el.addEventListener("click", (e) => { e.preventDefault(); openShops(); });
-      el.removeAttribute("onclick");
-      return;
-    }
-    if (v.includes("toggleTheme")) {
-      el.addEventListener("click", (e) => { e.preventDefault(); window.toggleTheme(); });
-      el.removeAttribute("onclick");
-      return;
-    }
-    if (v.includes("showOrderHistory")) {
-      el.addEventListener("click", (e) => { e.preventDefault(); showOrderHistory(); });
-      el.removeAttribute("onclick");
-      return;
-    }
-    if (v.includes("closeOrderHistory")) {
-      el.addEventListener("click", (e) => { e.preventDefault(); closeOrderHistory(); });
-      el.removeAttribute("onclick");
-      return;
-    }
-    if (v.includes("fillFromLastOrder")) {
-      el.addEventListener("click", (e) => { e.preventDefault(); fillFromLastOrder(); });
-      el.removeAttribute("onclick");
-      return;
-    }
-  });
+  if (!Array.isArray(prev)) prev = []; // ✅ FIX (unshift null)
+  prev.unshift(record);
+  localStorage.setItem(LS_HISTORY_KEY, JSON.stringify(prev.slice(0, 30)));
 }
 
 /* ================= INIT ================= */
 document.addEventListener("DOMContentLoaded", () => {
+
+  // ===== UI: Default DARK + Compact mode (no CSS edits needed) =====
+  try {
+    const style = document.createElement("style");
+    style.textContent = `
+      :root{
+        --bg-main:#0f1115;--bg-secondary:#151822;--bg-card:rgba(255,255,255,.06);
+        --bg-glass:rgba(255,255,255,.08);--border-glass:rgba(255,255,255,.12);
+        --accent-gold:#d4af37;--accent-green:#2ecc71;
+        --text-main:#f5f6f7;--text-muted:rgba(245,246,247,.72);
+        --shadow-soft:0 12px 30px rgba(0,0,0,.45);
+      }
+      body{background:var(--bg-main)!important;color:var(--text-main)!important}
+      .card{padding:12px!important;border-radius:16px!important}
+      .shop-card-inner{display:flex;flex-direction:column;align-items:center;gap:8px}
+      .shop-logo{width:62px;height:62px;border-radius:16px;object-fit:cover;box-shadow:var(--shadow-soft);background:rgba(0,0,0,.06)}
+      .shop-name{font-weight:800;font-size:14px}
+      .shop-hours{font-size:12px;color:var(--text-muted)}
+      #categories-list .card{padding:10px!important}
+      .product{padding:10px!important;gap:10px!important}
+      .product img{width:64px!important;height:64px!important;border-radius:14px!important}
+      .product h4{margin:0 0 4px 0!important;font-size:14px!important}
+      .product p{margin:0!important;font-size:12px!important;color:var(--text-muted)!important}
+      .qty-controls button{width:30px!important;height:30px!important;border-radius:10px!important}
+      .qty-number{min-width:18px!important;font-size:13px!important}
+    `;
+    document.head.appendChild(style);
+  } catch {}
+
+  // ===== PWA: register service worker if present =====
+  try {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register(BASE_PATH + "sw.js").catch(() => {});
+    }
+  } catch {}
+
   showHome();
   loadStores();
-  bindDelegatedClicks();
-  rebindInlineButtons();
 
   // пересчёт доставки при смене района
-  document.getElementById("district")
-    ?.addEventListener("change", updateCart);
+  document.getElementById("district")?.addEventListener("change", updateCart);
 
-  // показать карту Fast Bank при выборе перевода
-  const paymentSelect = document.getElementById("payment");
-  const cardInfo = document.getElementById("card-info");
+  // кнопки +/- в товарах и корзине (делегирование, CSP-safe)
+  document.addEventListener("click", (e) => {
+    const btn = e.target?.closest?.("button[data-act]");
+    if (!btn) return;
 
-  if (paymentSelect && cardInfo) {
-    paymentSelect.addEventListener("change", () => {
-      cardInfo.style.display =
-        paymentSelect.value.includes("Перевод")
-          ? "block"
-          : "none";
-    });
-  }
+    const act = btn.dataset.act;
+    const sid = btn.dataset.sid;
+    const name = btn.dataset.name;
 
-  // поиск (если есть поле)
-  const si = document.getElementById("searchInput");
-  if (si && !si.__bound) {
-    si.__bound = true;
-    si.addEventListener("input", applySearch);
-  }
+    if (!sid || !name) return;
+
+    if (act === "minus") {
+      changeQty(sid, name, -1, makeQtyId(sid, name));
+    } else if (act === "plus") {
+      const price = Number(btn.dataset.price || 0);
+      addToCart(sid, name, price, makeQtyId(sid, name));
+    }
+  });
 });
