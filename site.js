@@ -15,8 +15,7 @@ const STORES_INDEX_URL = BASE_PATH + "stores/index.json";
 
 /* ================= WORKER ================= */
 const WORKER_URL = "https://meronq.edulik844.workers.dev/orders";
-// ⚠️ Лучше убрать ключ из фронта позже. Пока оставляем, если Worker требует.
-const API_KEY = "meronq_Secret_2026!";
+
 
 /* ================= STATE ================= */
 let stores = {};
@@ -619,14 +618,14 @@ async function placeOrder() {
   }
 
   try {
-    const r = await fetch(WORKER_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": API_KEY, // можно убрать позже, когда Worker будет принимать по домену
-      },
-      body: JSON.stringify(built.payload),
-    });
+   const r = await fetch(WORKER_URL, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify(built.payload),
+});
+
 
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
