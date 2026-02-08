@@ -1,17 +1,21 @@
 /* =========================================================
-   MERONQ / ARTIK FOOD — site.js (FINAL)
+   MERONQ / ARTIK FOOD — site.js (CLEAN + FIXED)
    ✅ Магазин → Категории → Товары категории
    ✅ Иконки категорий
    ✅ Поиск: магазины / категории / товары (в зависимости от экрана)
    ✅ Счётчик между − / + обновляется мгновенно
-   ✅ Рабочая модель заказов → Cloudflare Worker /orders
+   ✅ Заказ → Cloudflare Worker /orders
+   ✅ История заказов (localStorage) + заполнение формы
    CSV: category;name;description;price;image   (или с запятыми)
    image = slug БЕЗ расширения (jpg/png/webp)
 ========================================================= */
 
-const BASE_PATH = location.pathname.includes("/meronq/") ? "/meronq/" : "/";
+/* ================= PATHS ================= */
+// ВАЖНО: работает в любой папке (GitHub Pages /Artik-food/meronq/ и т.п.)
+const BASE_PATH = new URL("./", location.href).pathname;
 const STORES_INDEX_URL = BASE_PATH + "stores/index.json";
 
+/* ================= WORKER ================= */
 // ⚠️ Worker ожидает POST на /orders и header x-api-key
 const WORKER_URL = "https://meronq.edulik844.workers.dev/orders";
 const API_KEY = "meronq_Secret_2026!";
@@ -43,6 +47,18 @@ function deliveryCost(d) {
          (d === "Нор-Кянк" || d === "Пемзашен") ? 1000 : 0;
 }
 
+/* ================= UTILS ================= */
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 /* ================= NAV ================= */
 function showHome() {
   $("home-page")?.classList.remove("hidden");
@@ -70,7 +86,6 @@ function goBack() {
 
 function openShops() {
   showHome();
-  // плавно к списку магазинов
   const sec = document.getElementById("shops");
   if (sec) sec.scrollIntoView({ behavior: "smooth" });
 }
@@ -80,11 +95,6 @@ window.goBack = goBack;
 window.openShops = openShops;
 
 window.toggleTheme = () => document.body.classList.toggle("light-theme");
-
-// чтобы клики в шапке не ломали сайт
-window.showOrderHistory = () => alert("История — скоро");
-window.fillFromLastOrder = () => alert("Данные из последнего заказа — скоро");
-window.submitReview = () => alert("Отзывы — скоро");
 
 /* ================= CATEGORY ICONS ================= */
 const CATEGORY_ICONS = {
@@ -283,7 +293,7 @@ function renderCategoryList(storeId, category, items) {
     const png = asset(`stores/${storeId}/images/${base}.png`);
     const webp = asset(`stores/${storeId}/images/${base}.webp`);
 
-    const safeName = p.name.replace(/'/g, "\\'");
+    const safeName = String(p.name || "").replace(/'/g, "\\'");
     const qtyId = makeQtyId(storeId, p.name);
 
     const row = document.createElement("div");
@@ -317,12 +327,8 @@ function renderCategoryList(storeId, category, items) {
 // 1) HOME: фильтр магазинов
 // 2) STORE (категории): фильтр категорий
 // 3) STORE (товары): фильтр товаров выбранной категории
-let searchTimer = null;
-
 function applySearch() {
   const q = ($("searchInput")?.value || "").trim().toLowerCase();
-
-  // меньше 2 символов — считаем что поиска нет
   const active = q.length >= 2;
 
   // HOME: фильтр магазинов
@@ -366,7 +372,6 @@ function filterShops(q) {
     c.style.display = txt.includes(q) ? "" : "none";
   });
 
-  // если пользователь ищет — автоматически открыть секцию магазинов
   const sec = document.getElementById("shops");
   if (sec) sec.scrollIntoView({ behavior: "smooth" });
 }
@@ -387,6 +392,8 @@ function filterCategories(q) {
   });
 }
 
+window.applySearch = applySearch;
+
 /* ================= CART ================= */
 function getQty(storeId, name) {
   return cart?.[storeId]?.[name]?.q || 0;
@@ -397,7 +404,6 @@ function addToCart(storeId, name, price, qtyId) {
   cart[storeId][name] ||= { q: 0, p: price };
   cart[storeId][name].q++;
 
-  // мгновенно обновляем цифру между − +
   if (qtyId) {
     const el = document.getElementById(qtyId);
     if (el) el.textContent = String(cart[storeId][name].q);
@@ -451,6 +457,7 @@ function updateCart() {
       const it = cart[sid][name];
       sum += it.q * it.p;
 
+      const safeName = name.replace(/'/g, "\\'");
       const row = document.createElement("div");
       row.className = "cart-item";
       row.innerHTML = `
@@ -459,9 +466,9 @@ function updateCart() {
           <span>${amd(it.p)} × ${it.q} = ${amd(it.p * it.q)}</span>
         </div>
         <div class="qty-controls">
-          <button onclick="changeQty('${sid}','${name.replace(/'/g,"\\'")}',-1,'${makeQtyId(sid, name)}')">−</button>
+          <button onclick="changeQty('${sid}','${safeName}',-1,'${makeQtyId(sid, name)}')">−</button>
           <span class="qty-number">${it.q}</span>
-          <button onclick="addToCart('${sid}','${name.replace(/'/g,"\\'")}',${it.p},'${makeQtyId(sid, name)}')">+</button>
+          <button onclick="addToCart('${sid}','${safeName}',${it.p},'${makeQtyId(sid, name)}')">+</button>
         </div>
       `;
       box.appendChild(row);
@@ -480,7 +487,7 @@ function updateCart() {
   $("grand-total") && ($("grand-total").textContent = `Итого: ${amd(sum + d)}`);
 }
 
-/* ================= ORDERS (WORKING) ================= */
+/* ================= ORDERS ================= */
 function buildOrderPayload() {
   const name = ($("name")?.value || "").trim();
   const phone = ($("phone")?.value || "").trim();
@@ -558,20 +565,16 @@ async function placeOrder() {
       body: JSON.stringify(built.payload),
     });
 
-    const j = await r.json().catch(() => ({}));if (!r.ok || !j.ok) {
-  throw new Error(j.error || `HTTP ${r.status}`);
-}
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
 
+    // ✅ сохраняем в историю
+    saveOrderToLocal(built.payload, j);
 
-saveOrderToLocal(built.payload, j);   // ✅ ВОТ ЭТО
+    alert("✅ Заказ отправлен!");
+    cart = {};
+    updateCart();
 
-alert("✅ Заказ отправлен!");
-cart = {};
-updateCart();
-goHome();
-
-
-    // очистим комментарий (остальное можно оставить)
     if ($("comment")) $("comment").value = "";
 
     // вернём на главную и к магазинам
@@ -637,35 +640,28 @@ function parseMenuToCategories(csvText) {
   return categories;
 }
 
-/* ================= UTILS ================= */
-function escapeRegExp(s) {
-  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-function escapeHtml(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-// ====== LocalStorage keys ======
+/* ================= ORDER HISTORY (LOCALSTORAGE) ================= */
 const LS_HISTORY_KEY = "meronq_order_history_v1";
 const LS_LAST_ORDER_KEY = "meronq_last_order_v1";
+
+function safeParse(str, fallback) {
+  try { return JSON.parse(str); } catch { return fallback; }
+}
 
 function saveOrderToLocal(orderData, resultFromServer) {
   const record = {
     id: resultFromServer?.orderId || resultFromServer?.id || null,
     at: new Date().toISOString(),
     customer: {
-      name: orderData.name,
-      phone: orderData.phone,
-      address: orderData.address,
-      district: orderData.district,
-      payment: orderData.payment,
-      comment: orderData.comment,
+      name: orderData?.name || "",
+      phone: orderData?.phone || "",
+      address: orderData?.address || "",
+      district: orderData?.district || "",
+      payment: orderData?.payment || "",
+      comment: orderData?.comment || "",
     },
-    totals: orderData.totals,
-    products: orderData.products,
+    totals: orderData?.totals || null,
+    products: Array.isArray(orderData?.products) ? orderData.products : [],
   };
 
   localStorage.setItem(LS_LAST_ORDER_KEY, JSON.stringify(record));
@@ -673,34 +669,6 @@ function saveOrderToLocal(orderData, resultFromServer) {
   const prev = safeParse(localStorage.getItem(LS_HISTORY_KEY), []);
   prev.unshift(record);
   localStorage.setItem(LS_HISTORY_KEY, JSON.stringify(prev.slice(0, 30)));
-}
-
-function safeParse(str, fallback) {
-  try { return JSON.parse(str); } catch { return fallback; }
-}
-
-/* ================= INIT ================= */
-document.addEventListener("DOMContentLoaded", () => {
-  showHome();
-  loadStores();
-
-    },
-    totals: orderData?.totals || null,
-    products: Array.isArray(orderData?.products) ? orderData.products : [],
-  };
-
-  // last order
-  localStorage.setItem(LS_LAST_ORDER_KEY, JSON.stringify(record));
-
-  // history (prepend, max 30)
-  const prev = safeParse(localStorage.getItem(LS_HISTORY_KEY), []);
-  prev.unshift(record);
-  const trimmed = prev.slice(0, 30);
-  localStorage.setItem(LS_HISTORY_KEY, JSON.stringify(trimmed));
-}
-
-function safeParse(str, fallback) {
-  try { return JSON.parse(str); } catch { return fallback; }
 }
 
 function getHistory() {
@@ -787,12 +755,9 @@ function showOrderHistory() {
 
 function clearOrderHistory() {
   localStorage.removeItem(LS_HISTORY_KEY);
-  // last order оставим — но можно удалить тоже
-  // localStorage.removeItem(LS_LAST_ORDER_KEY);
   showOrderHistory();
 }
 
-// Заполнить форму из выбранной записи истории
 function useHistoryOrder(index) {
   const history = getHistory();
   const h = history[index];
@@ -800,12 +765,9 @@ function useHistoryOrder(index) {
 
   fillOrderForm(h);
   closeOrderHistory();
-
-  // прокрутка к форме
   document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
 }
 
-// Кнопка "Данные из последнего заказа"
 function fillFromLastOrder() {
   const h = safeParse(localStorage.getItem(LS_LAST_ORDER_KEY), null);
   if (!h) return alert("Нет сохранённых данных последнего заказа");
@@ -827,7 +789,6 @@ function fillOrderForm(h) {
   setVal("payment", c.payment);
   setVal("comment", c.comment);
 
-  // если есть блок с картой - обновим видимость
   const paymentSelect = document.getElementById("payment");
   const cardInfo = document.getElementById("card-info");
   if (paymentSelect && cardInfo) {
@@ -835,25 +796,22 @@ function fillOrderForm(h) {
   }
 }
 
-// Небольшой escape (если у тебя его нет — оставь этот)
-function escapeHtml(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-
-// Экспорт в window (чтобы работали onclick из HTML)
 window.showOrderHistory = showOrderHistory;
 window.closeOrderHistory = closeOrderHistory;
 window.clearOrderHistory = clearOrderHistory;
 window.useHistoryOrder = useHistoryOrder;
 window.fillFromLastOrder = fillFromLastOrder;
 
-  // пересчёт доставки
-  document.getElementById("district")
-  ?.addEventListener("change", updateCart);
+/* ================= INIT ================= */
+document.addEventListener("DOMContentLoaded", () => {
+  showHome();
+  loadStores();
 
-  // 👇 ПОКАЗ КАРТЫ FAST BANK ПРИ ВЫБОРЕ ПЕРЕВОДА
+  // пересчёт доставки при смене района
+  document.getElementById("district")
+    ?.addEventListener("change", updateCart);
+
+  // показать карту Fast Bank при выборе перевода
   const paymentSelect = document.getElementById("payment");
   const cardInfo = document.getElementById("card-info");
 
