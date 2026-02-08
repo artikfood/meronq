@@ -610,6 +610,26 @@ function fillOrderForm(h) {
     const el = document.getElementById(id);
     if (el && val != null) el.value = val;
   };
+   
+function restoreCartFromHistory(h) {
+  const products = Array.isArray(h?.products) ? h.products : [];
+  const newCart = {};
+
+  for (const p of products) {
+    const sid = p.storeKey || p.storeId || p.store || null;
+    const name = p.name || "";
+    const qty = Number(p.quantity || 0);
+    const price = Number(p.unitPrice || p.price || 0);
+
+    if (!sid || !name || qty <= 0) continue;
+
+    newCart[sid] ||= {};
+    newCart[sid][name] = { q: qty, p: price };
+  }
+
+  cart = newCart;      // ✅ заменяем текущую корзину
+  updateCart();        // ✅ пересчёт итогов
+}
 
   setVal("name", c.name);
   setVal("phone", c.phone);
@@ -643,10 +663,22 @@ function useHistoryOrder(index) {
   const history = getHistory();
   const h = history[index];
   if (!h) return;
+
+  // ✅ 1) восстановить корзину из истории
+  restoreCartFromHistory(h);
+
+  // ✅ 2) заполнить форму доставки/оплаты
   fillOrderForm(h);
+
+  // ✅ 3) закрыть историю и показать корзину
   closeOrderHistory();
   document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
+
+  // ✅ если оплата "Перевод" — показать карту
+  if (typeof refreshPaymentUI === "function") refreshPaymentUI();
 }
+
+
 
 function showOrderHistory() {
   const modal = document.getElementById("history-modal");
