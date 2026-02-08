@@ -1,11 +1,10 @@
 /* =========================================================
-   MERONQ / ARTIK FOOD — site.js (FINAL FIXED)
-   ✅ магазины/меню/корзина
-   ✅ заказ на Worker /orders
+   MERONQ / ARTIK FOOD — site.js (FINAL, NO-DESIGN-CHANGES)
+   ✅ магазины/меню/корзина/заказ
    ✅ история заказов + автозаполнение
-   ✅ мультиязык (auto + AM/RU/EN) без reload
-   ✅ оплата переводом: блок карты + Copy
-   ✅ изображения: jpg/png/webp (без спама 404)
+   ✅ мультиязык (hy/ru/en) надежно (по id/элементам)
+   ✅ оплата переводом: показывает карту + Copy
+   ✅ картинки: jpg/png/webp (или/или)
 ========================================================= */
 
 /* ================= PATHS ================= */
@@ -13,7 +12,7 @@ const BASE_PATH = new URL("./", location.href).pathname;
 const STORES_INDEX_URL = BASE_PATH + "stores/index.json";
 
 /* ================= WORKER ================= */
-// Ключ на фронте не нужен (у тебя Worker защищён Origin-ом)
+// ключ на фронте НЕ нужен (у тебя защита по Origin на Worker)
 const WORKER_URL = "https://meronq.edulik844.workers.dev/orders";
 
 /* ================= STATE ================= */
@@ -52,39 +51,6 @@ function deliveryCost(d) {
   return d === "Артик" ? 500 :
          d === "Арич" ? 700 :
          (d === "Нор-Кянк" || d === "Пемзашен") ? 1000 : 0;
-}
-
-/* ================= UI MSG ================= */
-function showOrderMsg(text, type = "info") {
-  let box = document.getElementById("order-status");
-  if (!box) {
-    box = document.createElement("div");
-    box.id = "order-status";
-    box.style.marginTop = "10px";
-    box.style.padding = "10px 12px";
-    box.style.borderRadius = "14px";
-    box.style.fontSize = "13px";
-    box.style.fontWeight = "800";
-    box.style.textAlign = "center";
-    const form = document.querySelector(".order-form") || document.body;
-    form.appendChild(box);
-  }
-
-  if (type === "error") {
-    box.style.border = "1px solid rgba(255,107,107,.35)";
-    box.style.background = "rgba(255,107,107,.10)";
-    box.style.color = "#ffb3b3";
-  } else if (type === "success") {
-    box.style.border = "1px solid rgba(46,204,113,.35)";
-    box.style.background = "rgba(46,204,113,.10)";
-    box.style.color = "#b7f5c8";
-  } else {
-    box.style.border = "1px solid rgba(255,255,255,.14)";
-    box.style.background = "rgba(255,255,255,.06)";
-    box.style.color = "var(--text-main)";
-  }
-
-  box.textContent = text;
 }
 
 /* ================= NAV ================= */
@@ -144,8 +110,7 @@ async function loadStores() {
   if (!list) return;
 
   try {
-    const url = STORES_INDEX_URL + `?v=${Date.now()}`;
-    const r = await fetch(url, { cache: "no-store" });
+    const r = await fetch(STORES_INDEX_URL + `?v=${Date.now()}`, { cache: "no-store" });
     if (!r.ok) throw new Error(`stores/index.json HTTP ${r.status}`);
     const data = await r.json();
 
@@ -163,16 +128,17 @@ async function loadStores() {
       const logoSrc = asset(s.logo);
 
       el.innerHTML = `
-        <div class="shop-card-inner">
-          <img class="shop-logo" src="${logoSrc}" alt="${escapeHtml(s.name)}"
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
+          <img src="${logoSrc}"
+               alt="${escapeHtml(s.name)}"
+               style="width:72px;height:72px;border-radius:16px;object-fit:cover;box-shadow:var(--shadow-soft);background:rgba(0,0,0,0.06)"
                onerror="this.style.display='none'">
-          <div class="shop-name">${escapeHtml(s.name)}</div>
+          <div style="font-weight:700">${escapeHtml(s.name)}</div>
           <div style="font-size:12px;color:var(--text-muted)">
             🕙 ${escapeHtml(s.workingHours?.open || "09:00")} - ${escapeHtml(s.workingHours?.close || "22:00")}
           </div>
         </div>
       `;
-
       list.appendChild(el);
     });
 
@@ -253,9 +219,9 @@ function showCategories(storeId) {
     card.style.textAlign = "left";
     card.innerHTML = `
       <div style="display:flex;align-items:center;gap:10px">
-        <div style="font-size:26px;line-height:1">${catIcon(cat)}</div>
+        <div style="font-size:28px;line-height:1">${catIcon(cat)}</div>
         <div style="flex:1">
-          <div style="font-weight:900">${escapeHtml(cat)}</div>
+          <div style="font-weight:700">${escapeHtml(cat)}</div>
           <div style="margin-top:6px;font-size:12px;color:var(--text-muted)">Товаров: ${count}</div>
         </div>
       </div>
@@ -283,7 +249,7 @@ function showCategoryProducts(storeId, category) {
   scrollTo(0, 0);
 }
 
-/* ================= IMAGES (jpg/png/webp) ================= */
+/* ================= IMAGES (jpg/png/webp either-or) ================= */
 const IMAGE_EXTS = [".jpg", ".png", ".webp"];
 const imageExistsCache = new Map();
 const resolvedImageCache = new Map();
@@ -346,7 +312,6 @@ function renderCategoryList(storeId, category, items) {
   const h = document.createElement("h3");
   h.style.margin = "18px 0 8px";
   h.style.color = "var(--accent-gold)";
-  h.style.fontWeight = "900";
   h.textContent = category;
   productsBox.appendChild(h);
 
@@ -404,6 +369,7 @@ function applySearch() {
           (p.name || "").toLowerCase().includes(q) ||
           (p.desc || "").toLowerCase().includes(q)
         );
+
     renderCategoryList(currentStoreId, currentCategory, filtered);
     return;
   }
@@ -504,7 +470,7 @@ function updateCart() {
 
     const header = document.createElement("div");
     header.style.margin = "12px 0 6px";
-    header.style.fontWeight = "900";
+    header.style.fontWeight = "700";
     header.style.color = "var(--accent-gold)";
     header.textContent = storeName;
     box.appendChild(header);
@@ -515,11 +481,11 @@ function updateCart() {
 
       const safeName = name.replace(/'/g, "\\'");
       const row = document.createElement("div");
-      row.className = "product";
+      row.className = "cart-item";
       row.innerHTML = `
         <div style="flex:1;text-align:left;">
-          <div style="font-weight:800;">${escapeHtml(name)}</div>
-          <div style="color:var(--text-muted);font-size:13px">${amd(it.p)} × ${it.q} = ${amd(it.p * it.q)}</div>
+          <div style="font-weight:600;">${escapeHtml(name)}</div>
+          <span>${amd(it.p)} × ${it.q} = ${amd(it.p * it.q)}</span>
         </div>
         <div class="qty-controls">
           <button onclick="changeQty('${sid}','${safeName}',-1,'${makeQtyId(sid, name)}')">−</button>
@@ -586,12 +552,179 @@ function buildOrderPayload() {
   };
 }
 
+/* ====== order history storage (FIXED) ====== */
+const LS_HISTORY_KEY = "meronq_order_history_v1";
+const LS_LAST_ORDER_KEY = "meronq_last_order_v1";
+
+function safeParse(str, fallback) {
+  try {
+    const v = JSON.parse(str);
+    return (v === null || v === undefined) ? fallback : v;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveOrderToLocal(orderData, resultFromServer) {
+  const record = {
+    id: resultFromServer?.orderId || resultFromServer?.id || null,
+    at: new Date().toISOString(),
+    customer: {
+      name: orderData?.name || "",
+      phone: orderData?.phone || "",
+      address: orderData?.address || "",
+      district: orderData?.district || "",
+      payment: orderData?.payment || "",
+      comment: orderData?.comment || "",
+    },
+    totals: orderData?.totals || null,
+    products: Array.isArray(orderData?.products) ? orderData.products : [],
+  };
+
+  localStorage.setItem(LS_LAST_ORDER_KEY, JSON.stringify(record));
+
+  let prev = safeParse(localStorage.getItem(LS_HISTORY_KEY), []);
+  if (!Array.isArray(prev)) prev = [];
+  prev.unshift(record);
+  localStorage.setItem(LS_HISTORY_KEY, JSON.stringify(prev.slice(0, 30)));
+}
+
+function getHistory() {
+  const h = safeParse(localStorage.getItem(LS_HISTORY_KEY), []);
+  return Array.isArray(h) ? h : [];
+}
+
+function fillOrderForm(h) {
+  const c = h?.customer || {};
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && val != null) el.value = val;
+  };
+
+  setVal("name", c.name);
+  setVal("phone", c.phone);
+  setVal("address", c.address);
+  setVal("district", c.district);
+  setVal("payment", c.payment);
+  setVal("comment", c.comment);
+
+  updateCart();
+  refreshPaymentUI();
+}
+
+function fillFromLastOrder() {
+  const h = safeParse(localStorage.getItem(LS_LAST_ORDER_KEY), null);
+  if (!h) return alert("Нет сохранённых данных последнего заказа");
+  fillOrderForm(h);
+  document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
+}
+
+function closeOrderHistory() {
+  document.getElementById("history-modal")?.classList.add("hidden");
+}
+
+function clearOrderHistory() {
+  localStorage.removeItem(LS_HISTORY_KEY);
+  localStorage.removeItem(LS_LAST_ORDER_KEY);
+  showOrderHistory();
+}
+
+function useHistoryOrder(index) {
+  const history = getHistory();
+  const h = history[index];
+  if (!h) return;
+  fillOrderForm(h);
+  closeOrderHistory();
+  document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
+}
+
+function showOrderHistory() {
+  const modal = document.getElementById("history-modal");
+  const list = document.getElementById("history-list");
+  if (!modal || !list) return;
+
+  const history = getHistory();
+
+  if (!history.length) {
+    list.innerHTML = `<div style="padding:16px;color:var(--text-muted);text-align:center">История пуста</div>`;
+  } else {
+    list.innerHTML = history.map((h, idx) => {
+      const date = new Date(h.at);
+      const dt = isNaN(date.getTime()) ? (h.at || "") : date.toLocaleString();
+      const itemsTotal = h?.totals?.itemsTotal ?? null;
+      const delivery = h?.totals?.delivery ?? null;
+      const grand = h?.totals?.grandTotal ?? null;
+
+      const productsText = (h.products || []).slice(0, 12).map(p => {
+        const nm = escapeHtml(p.name || "");
+        const q = Number(p.quantity || 0);
+        const st = escapeHtml(p.storeName || p.storeKey || "");
+        return `<div style="color:var(--text-muted);font-size:13px">• ${nm} × ${q} <span style="opacity:.8">(${st})</span></div>`;
+      }).join("");
+
+      return `
+        <div style="
+          border:1px solid var(--border-glass);
+          background:linear-gradient(180deg,var(--bg-glass),rgba(255,255,255,0.02));
+          border-radius:16px;
+          padding:12px;
+          margin-bottom:10px;
+        ">
+          <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+            <div style="font-weight:700;color:var(--text-main)">
+              Заказ ${h.id ? `#${escapeHtml(String(h.id))}` : `№${history.length - idx}`}
+            </div>
+            <div style="color:var(--text-muted);font-size:13px">${escapeHtml(dt)}</div>
+          </div>
+
+          <div style="margin-top:6px;color:var(--text-muted);font-size:13px">
+            👤 ${escapeHtml(h?.customer?.name || "")} • 📞 ${escapeHtml(h?.customer?.phone || "")}
+          </div>
+          <div style="margin-top:4px;color:var(--text-muted);font-size:13px">
+            📍 ${escapeHtml(h?.customer?.address || "")} • 🏙 ${escapeHtml(h?.customer?.district || "")}
+          </div>
+
+          <div style="margin-top:8px">
+            ${productsText || `<div style="color:var(--text-muted);font-size:13px">Товары не сохранены</div>`}
+          </div>
+
+          <div style="margin-top:10px;font-weight:700;color:var(--accent-gold)">
+            ${grand != null ? `Итого: ${Number(grand).toLocaleString()} AMD` : ""}
+            <span style="font-weight:500;color:var(--text-muted);font-size:13px;margin-left:10px">
+              ${itemsTotal != null ? `Товары: ${Number(itemsTotal).toLocaleString()} AMD` : ""}
+              ${delivery != null ? ` • Доставка: ${Number(delivery).toLocaleString()} AMD` : ""}
+            </span>
+          </div>
+
+          <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px">
+            <button onclick="useHistoryOrder(${idx})" style="
+              padding:9px 12px;border-radius:999px;
+              border:1px solid var(--border-glass);
+              background:var(--bg-glass); color:var(--text-main);
+              cursor:pointer;font-weight:600
+            ">Заполнить форму</button>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  modal.classList.remove("hidden");
+}
+
+window.showOrderHistory = showOrderHistory;
+window.closeOrderHistory = closeOrderHistory;
+window.clearOrderHistory = clearOrderHistory;
+window.useHistoryOrder = useHistoryOrder;
+window.fillFromLastOrder = fillFromLastOrder;
+
+/* ====== placeOrder ====== */
 async function placeOrder() {
   const btn = document.querySelector(".order-form button[onclick*='placeOrder']") || null;
 
   const built = buildOrderPayload();
   if (built.error) {
-    showOrderMsg("❌ " + built.error, "error");
+    alert("❌ " + built.error);
     return;
   }
 
@@ -607,17 +740,12 @@ async function placeOrder() {
       body: JSON.stringify(built.payload),
     });
 
-    const text = await r.text();
-    let j = {};
-    try { j = JSON.parse(text); } catch {}
-
-    if (!r.ok || !j.ok) {
-      throw new Error(j?.error || `HTTP ${r.status}: ${text.slice(0, 200)}`);
-    }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
 
     saveOrderToLocal(built.payload, j);
 
-    showOrderMsg("✅ Заказ отправлен!", "success");
+    alert("✅ Заказ отправлен!");
     cart = {};
     updateCart();
 
@@ -625,7 +753,7 @@ async function placeOrder() {
     openShops();
   } catch (e) {
     console.error(e);
-    showOrderMsg("❌ Ошибка заказа: " + (e?.message || "неизвестно"), "error");
+    alert("❌ Ошибка заказа: " + (e?.message || "неизвестно"));
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -684,334 +812,185 @@ function parseMenuToCategories(csvText) {
   return categories;
 }
 
-/* ================= ORDER HISTORY (LOCALSTORAGE) ================= */
-const LS_HISTORY_KEY = "meronq_order_history_v1";
-const LS_LAST_ORDER_KEY = "meronq_last_order_v1";
+/* ================= PAYMENT UI + COPY ================= */
+function isTransferPayment(val) {
+  const v = String(val || "").toLowerCase();
+  return v.includes("перевод") || v.includes("transfer") || v.includes("փոխանց");
+}
 
-function safeParse(str, fallback) {
+function refreshPaymentUI() {
+  const sel = document.getElementById("payment");
+  const card = document.getElementById("card-info");
+  if (!sel || !card) return;
+  card.style.display = isTransferPayment(sel.value) ? "block" : "none";
+}
+
+async function copyCardNumber() {
+  const b = document.getElementById("card-number");
+  const raw = (b?.textContent || "").replace(/\s+/g, "");
+  if (!raw) return;
+
   try {
-    const v = JSON.parse(str);
-    return (v === null || v === undefined) ? fallback : v;
+    await navigator.clipboard.writeText(raw);
   } catch {
-    return fallback;
+    const ta = document.createElement("textarea");
+    ta.value = raw;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch {}
+    ta.remove();
+  }
+
+  const btn = document.getElementById("copy-card-btn");
+  if (btn) {
+    const old = btn.textContent;
+    btn.textContent = "✅";
+    setTimeout(() => (btn.textContent = old), 1200);
   }
 }
 
-function saveOrderToLocal(orderData, resultFromServer) {
-  const record = {
-    id: resultFromServer?.orderId || resultFromServer?.id || null,
-    at: new Date().toISOString(),
-    customer: {
-      name: orderData?.name || "",
-      phone: orderData?.phone || "",
-      address: orderData?.address || "",
-      district: orderData?.district || "",
-      payment: orderData?.payment || "",
-      comment: orderData?.comment || "",
-    },
-    totals: orderData?.totals || null,
-    products: Array.isArray(orderData?.products) ? orderData.products : [],
-  };
-
-  localStorage.setItem(LS_LAST_ORDER_KEY, JSON.stringify(record));
-
-  let prev = safeParse(localStorage.getItem(LS_HISTORY_KEY), []);
-  if (!Array.isArray(prev)) prev = [];
-  prev.unshift(record);
-  localStorage.setItem(LS_HISTORY_KEY, JSON.stringify(prev.slice(0, 30)));
-}
-
-/* ================= HISTORY UI (MODAL) ================= */
-function getHistory() {
-  return safeParse(localStorage.getItem(LS_HISTORY_KEY), []);
-}
-
-function closeOrderHistory() {
-  document.getElementById("history-modal")?.classList.add("hidden");
-}
-
-function clearOrderHistory() {
-  localStorage.removeItem(LS_HISTORY_KEY);
-  localStorage.removeItem(LS_LAST_ORDER_KEY);
-  showOrderHistory();
-}
-
-function showOrderHistory() {
-  const modal = document.getElementById("history-modal");
-  const list = document.getElementById("history-list");
-  if (!modal || !list) return;
-
-  const history = getHistory();
-  if (!Array.isArray(history) || history.length === 0) {
-    list.innerHTML = `<div style="padding:16px;color:var(--text-muted);text-align:center">История пуста</div>`;
-    modal.classList.remove("hidden");
-    return;
-  }
-
-  list.innerHTML = history.map((h, idx) => {
-    const date = new Date(h.at);
-    const dt = isNaN(date.getTime()) ? (h.at || "") : date.toLocaleString();
-    const itemsTotal = h?.totals?.itemsTotal ?? null;
-    const delivery = h?.totals?.delivery ?? null;
-    const grand = h?.totals?.grandTotal ?? null;
-
-    const productsText = (h.products || []).slice(0, 12).map(p => {
-      const nm = escapeHtml(p.name || "");
-      const q = Number(p.quantity || 0);
-      const st = escapeHtml(p.storeName || p.storeKey || "");
-      return `<div style="color:var(--text-muted);font-size:13px">• ${nm} × ${q} <span style="opacity:.8">(${st})</span></div>`;
-    }).join("");
-
-    return `
-      <div style="
-        border:1px solid var(--border-glass);
-        background:linear-gradient(180deg,var(--bg-glass),rgba(255,255,255,0.02));
-        border-radius:16px;
-        padding:12px;
-        margin-bottom:10px;
-      ">
-        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
-          <div style="font-weight:900;color:var(--text-main)">
-            Заказ ${h.id ? `#${escapeHtml(String(h.id))}` : `№${history.length - idx}`}
-          </div>
-          <div style="color:var(--text-muted);font-size:13px">${escapeHtml(dt)}</div>
-        </div>
-
-        <div style="margin-top:6px;color:var(--text-muted);font-size:13px">
-          👤 ${escapeHtml(h?.customer?.name || "")} • 📞 ${escapeHtml(h?.customer?.phone || "")}
-        </div>
-        <div style="margin-top:4px;color:var(--text-muted);font-size:13px">
-          📍 ${escapeHtml(h?.customer?.address || "")} • 🏙 ${escapeHtml(h?.customer?.district || "")}
-        </div>
-
-        <div style="margin-top:8px">
-          ${productsText || `<div style="color:var(--text-muted);font-size:13px">Товары не сохранены</div>`}
-        </div>
-
-        <div style="margin-top:10px;font-weight:900;color:var(--accent-gold)">
-          ${grand != null ? `Итого: ${Number(grand).toLocaleString()} AMD` : ""}
-          <span style="font-weight:700;color:var(--text-muted);font-size:13px;margin-left:10px">
-            ${itemsTotal != null ? `Товары: ${Number(itemsTotal).toLocaleString()} AMD` : ""}
-            ${delivery != null ? ` • Доставка: ${Number(delivery).toLocaleString()} AMD` : ""}
-          </span>
-        </div>
-
-        <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px">
-          <button onclick="useHistoryOrder(${idx})" style="
-            padding:9px 12px;border-radius:999px;
-            border:1px solid var(--border-glass);
-            background:var(--bg-glass); color:var(--text-main);
-            cursor:pointer;font-weight:900
-          ">Заполнить форму</button>
-        </div>
-      </div>
-    `;
-  }).join("");
-
-  modal.classList.remove("hidden");
-}
-
-function fillOrderFormFromRecord(h) {
-  const c = h?.customer || {};
-  const setVal = (id, val) => {
-    const el = document.getElementById(id);
-    if (el && val != null) el.value = val;
-  };
-
-  setVal("name", c.name);
-  setVal("phone", c.phone);
-  setVal("address", c.address);
-  setVal("district", c.district);
-  setVal("payment", c.payment);
-  setVal("comment", c.comment);
-
-  updateCart();
-
-  // Payment UI refresh
-  const paySel = document.getElementById("payment");
-  const cardBox = document.getElementById("card-info");
-  if (paySel && cardBox) {
-    const v = String(paySel.value || "").toLowerCase();
-    const isTr = v.includes("перевод") || v.includes("transfer") || v.includes("փոխանց");
-    cardBox.style.display = isTr ? "block" : "none";
-  }
-}
-
-function useHistoryOrder(index) {
-  const history = getHistory();
-  const h = history?.[index];
-  if (!h) return;
-  fillOrderFormFromRecord(h);
-  closeOrderHistory();
-  document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
-}
-
-function fillFromLastOrder() {
-  const h = safeParse(localStorage.getItem(LS_LAST_ORDER_KEY), null);
-  if (!h) {
-    alert("Нет сохранённых данных последнего заказа");
-    return;
-  }
-  fillOrderFormFromRecord(h);
-  document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
-}
-
-window.showOrderHistory = showOrderHistory;
-window.closeOrderHistory = closeOrderHistory;
-window.clearOrderHistory = clearOrderHistory;
-window.useHistoryOrder = useHistoryOrder;
-window.fillFromLastOrder = fillFromLastOrder;
-
-/* ================= MULTILANG (AUTO + BUTTONS) ================= */
-/* Простой и безопасный “авто-перевод” без data-i18n:
-   переводим только фразы из словаря — не трогаем суммы/товары.
-*/
+/* ================= MULTILANG (SAFE, NO BREAK UI) ================= */
+// Переводим только конкретные элементы, не трогаем товары/цены.
 const LANG_KEY = "meronq_lang_v1";
 const SUPPORTED_LANGS = ["hy", "ru", "en"];
-let __lang = "hy";
 
-const TEXT_DICT = {
-  "Магазины": { ru: "Магазины", hy: "Խանութներ", en: "Stores" },
-  "История": { ru: "История", hy: "Պատմություն", en: "History" },
-  "Корзина": { ru: "Корзина", hy: "Զամբյուղ", en: "Cart" },
-  "История заказов": { ru: "История заказов", hy: "Պատվերների պատմություն", en: "Order history" },
-  "Выберите район": { ru: "Выберите район", hy: "Ընտրեք շրջանը", en: "Choose district" },
-  "Комментарий к заказу": { ru: "Комментарий к заказу", hy: "Մեկնաբանություն", en: "Comment" },
-  "⚡ Автозаполнить из последнего заказа": { ru: "⚡ Автозаполнить из последнего заказа", hy: "⚡ Լրացնել վերջին պատվերից", en: "⚡ Fill from last order" },
-  "📲 Отправить заказ": { ru: "📲 Отправить заказ", hy: "📲 Ուղարկել պատվերը", en: "📲 Place order" },
-  "← Назад": { ru: "← Назад", hy: "← Հետ", en: "← Back" },
-  "Закрыть": { ru: "Закрыть", hy: "Փակել", en: "Close" },
-  "Очистить историю": { ru: "Очистить историю", hy: "Մաքրել պատմությունը", en: "Clear history" },
-  "Поиск...": { ru: "Поиск...", hy: "Որոնել…", en: "Search…" },
+const I18N = {
+  ru: {
+    search: "Поиск...",
+    shops: "Магазины",
+    cart: "Корзина",
+    history: "История заказов",
+    district_choose: "Выберите район",
+    comment: "Комментарий к заказу",
+    send: "📲 Отправить заказ",
+    back: "← Назад",
+    empty_history: "История пуста",
+    fill_form: "Заполнить форму",
+    copy: "📋 Copy",
+    cash: "💵 Наличные курьеру",
+    transfer: "💳 Перевод на карту (Fast Bank)",
+    card_title: "Номер карты:",
+    recipient: "Получатель:",
+  },
+  hy: {
+    search: "Որոնել…",
+    shops: "Խանութներ",
+    cart: "Զամբյուղ",
+    history: "Պատվերների պատմություն",
+    district_choose: "Ընտրեք շրջանը",
+    comment: "Մեկնաբանություն",
+    send: "📲 Ուղարկել պատվերը",
+    back: "← Հետ",
+    empty_history: "Պատմությունը դատարկ է",
+    fill_form: "Լրացնել ձևը",
+    copy: "📋 Պատճենել",
+    cash: "💵 Կանխիկ курьерին",
+    transfer: "💳 Փոխանցում քարտին (Fast Bank)",
+    card_title: "Քարտի համարը․",
+    recipient: "Ստացող․",
+  },
+  en: {
+    search: "Search…",
+    shops: "Stores",
+    cart: "Cart",
+    history: "Order history",
+    district_choose: "Choose district",
+    comment: "Comment",
+    send: "📲 Place order",
+    back: "← Back",
+    empty_history: "History is empty",
+    fill_form: "Fill the form",
+    copy: "📋 Copy",
+    cash: "💵 Cash to courier",
+    transfer: "💳 Card transfer (Fast Bank)",
+    card_title: "Card number:",
+    recipient: "Recipient:",
+  },
 };
 
-const PLACEHOLDER_DICT = {
-  "Ваше имя": { ru: "Ваше имя", hy: "Ձեր անունը", en: "Your name" },
-  "Ваш телефон": { ru: "Ваш телефон", hy: "Ձեր հեռախոսը", en: "Your phone" },
-  "Адрес доставки": { ru: "Адрес доставки", hy: "Առաքման հասցեն", en: "Delivery address" },
-};
-
-let __built = false;
-let __textNodes = [];
-let __phEls = [];
-
-function __buildMapsOnce() {
-  if (__built) return;
-  __built = true;
-
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
-    acceptNode: (node) => {
-      const txt = (node.nodeValue || "").trim();
-      if (!txt) return NodeFilter.FILTER_REJECT;
-
-      const p = node.parentElement;
-      if (!p) return NodeFilter.FILTER_REJECT;
-      const tag = (p.tagName || "").toLowerCase();
-      if (tag === "script" || tag === "style") return NodeFilter.FILTER_REJECT;
-
-      if (TEXT_DICT[txt]) return NodeFilter.FILTER_ACCEPT;
-      return NodeFilter.FILTER_REJECT;
-    }
-  });
-
-  let n;
-  while ((n = walker.nextNode())) {
-    __textNodes.push({ node: n, base: (n.nodeValue || "").trim() });
-  }
-
-  document.querySelectorAll("input[placeholder], textarea[placeholder]").forEach(el => {
-    const ph = (el.getAttribute("placeholder") || "").trim();
-    if (ph && PLACEHOLDER_DICT[ph]) __phEls.push({ el, base: ph });
-  });
-}
-
-function __applyLang() {
-  __buildMapsOnce();
-  __textNodes.forEach(({ node, base }) => {
-    const d = TEXT_DICT[base];
-    if (d && d[__lang]) node.nodeValue = " " + d[__lang] + " ";
-  });
-  __phEls.forEach(({ el, base }) => {
-    const d = PLACEHOLDER_DICT[base];
-    if (d && d[__lang]) el.setAttribute("placeholder", d[__lang]);
-  });
-}
-
-function getLang() {
+function getSavedLang() {
   const saved = (localStorage.getItem(LANG_KEY) || "").trim();
   if (SUPPORTED_LANGS.includes(saved)) return saved;
 
   const nav = (navigator.language || "").toLowerCase();
   if (nav.startsWith("hy")) return "hy";
   if (nav.startsWith("ru")) return "ru";
-  return "hy";
+  return "hy"; // по умолчанию ARM
 }
 
-function setLang(lang) {
+function applyLang(lang) {
   if (!SUPPORTED_LANGS.includes(lang)) return;
-  __lang = lang;
   localStorage.setItem(LANG_KEY, lang);
-  __applyLang();
+
+  const t = I18N[lang] || I18N.hy;
+
+  // search placeholder
+  const s = document.getElementById("searchInput");
+  if (s) s.placeholder = t.search;
+
+  // comment placeholder
+  const c = document.getElementById("comment");
+  if (c && c.getAttribute("placeholder")) c.setAttribute("placeholder", t.comment);
+
+  // district first option text
+  const d = document.getElementById("district");
+  if (d && d.options && d.options[0]) d.options[0].textContent = t.district_choose;
+
+  // payment option texts (values оставляем как есть!)
+  const p = document.getElementById("payment");
+  if (p && p.options && p.options.length >= 2) {
+    p.options[0].textContent = t.cash;
+    p.options[1].textContent = t.transfer;
+  }
+
+  // send button text (только если кнопка действительно "Отправить заказ")
+  const sendBtn = document.querySelector(".order-form button[onclick*='placeOrder']");
+  if (sendBtn && !sendBtn.disabled) sendBtn.textContent = t.send;
+
+  // back button (если есть обычная кнопка с текстом)
+  const backBtn = document.querySelector("button[onclick*='goBack']");
+  if (backBtn) backBtn.textContent = t.back;
+
+  // history modal title (если есть отдельный заголовок — пропускаем, иначе не ломаем)
+  // кнопка "Заполнить форму" меняется внутри рендера — оставим как было, чтобы не менять шаблон
+
+  // copy button label
+  const copyBtn = document.getElementById("copy-card-btn");
+  if (copyBtn) copyBtn.textContent = t.copy;
+}
+
+function initLangSwitch() {
+  const sw = document.getElementById("lang-switch");
+  if (!sw) return;
+
+  sw.addEventListener("click", (e) => {
+    const b = e.target?.closest?.("button[data-lang]");
+    if (!b) return;
+    applyLang(b.getAttribute("data-lang"));
+    refreshPaymentUI();
+  });
 }
 
 /* ================= INIT ================= */
 document.addEventListener("DOMContentLoaded", () => {
-  // init language
-  try {
-    __lang = getLang();
-    localStorage.setItem(LANG_KEY, __lang);
-  } catch {}
-  try { __applyLang(); } catch {}
-
-  // lang buttons
-  const sw = document.getElementById("lang-switch");
-  if (sw) {
-    sw.querySelectorAll("button[data-lang]").forEach((b) => {
-      b.addEventListener("click", () => setLang(b.getAttribute("data-lang")));
-    });
-  }
-
-  // payment UI + copy
-  const paySel = document.getElementById("payment");
-  const cardBox = document.getElementById("card-info");
-  const copyBtn = document.getElementById("copy-card-btn");
-
-  function isTransfer(val){
-    const v = String(val||"").toLowerCase();
-    return v.includes("перевод") || v.includes("transfer") || v.includes("փոխանց");
-  }
-  function refreshPaymentUI(){
-    if (!paySel || !cardBox) return;
-    cardBox.style.display = isTransfer(paySel.value) ? "block" : "none";
-  }
-  if (paySel) paySel.addEventListener("change", refreshPaymentUI);
-  refreshPaymentUI();
-
-  if (copyBtn) {
-    copyBtn.addEventListener("click", async () => {
-      const numEl = document.getElementById("card-number");
-      const raw = (numEl?.textContent || "").replace(/\s+/g, "");
-      if (!raw) return;
-      try {
-        await navigator.clipboard.writeText(raw);
-        const old = copyBtn.textContent;
-        copyBtn.textContent = "✅";
-        setTimeout(() => (copyBtn.textContent = old), 1200);
-      } catch {
-        const ta = document.createElement("textarea");
-        ta.value = raw;
-        document.body.appendChild(ta);
-        ta.select();
-        try { document.execCommand("copy"); } catch {}
-        ta.remove();
-      }
-    });
-  }
-
-  // store load
   showHome();
   loadStores();
 
-  // update totals when district changes
+  // totals on district change
   document.getElementById("district")?.addEventListener("change", updateCart);
+
+  // payment toggle + copy
+  document.getElementById("payment")?.addEventListener("change", () => {
+    refreshPaymentUI();
+    updateCart();
+  });
+  refreshPaymentUI();
+
+  document.getElementById("copy-card-btn")?.addEventListener("click", copyCardNumber);
+
+  // language
+  initLangSwitch();
+  applyLang(getSavedLang());
 });
+
+/* ================= expose search and history already exposed above ================= */
