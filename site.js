@@ -9,6 +9,45 @@
    ✅ CSP-safe: без inline onclick
 ========================================================= */
 
+/* ================= DICTIONARY (AUTO-TRANSLATE) ================= */
+const SUPPORTED_LANGS = ["ru", "hy", "en"];
+let __lang = localStorage.getItem("lang") || "ru";
+
+const TEXT_DICT = {
+  "Корзина": { ru: "Корзина", hy: "Զամբյուղ", en: "Cart" },
+  "История заказов": { ru: "История заказов", hy: "Պատվերների պատմություն", en: "Order History" },
+  "Пусто": { ru: "Пусто", hy: "Դատարկ է", en: "Empty" },
+  "Итого": { ru: "Итого", hy: "Ընդամենը", en: "Total" },
+  "Оформить заказ": { ru: "Оформить заказ", hy: "Ձևակերպել պատվերը", en: "Checkout" },
+  "Способ оплаты:": { ru: "Способ оплаты:", hy: "Վճարման եղանակը:", en: "Payment method:" },
+  "Наличные": { ru: "Наличные", hy: "Կանխիկ", en: "Cash" },
+  "Перевод": { ru: "Перевод", hy: "Փոխանցում", en: "Transfer" }
+};
+
+const PLACEHOLDER_DICT = {
+  "Ваше имя": { ru: "Ваше имя", hy: "Ձեր անունը", en: "Your name" },
+  "Ваш телефон": { ru: "Ваш телефон", hy: "Ձեր հեռախոսը", en: "Your phone" },
+  "Адрес доставки": { ru: "Адрес доставки", hy: "Առաքման հասցեն", en: "Delivery address" }
+};
+
+/* ================= PAYMENT LOGIC (FIX) ================= */
+// Добавь эту функцию в конец файла site.js
+function handlePaymentChange(val) {
+  const cardBox = document.getElementById("card-details-box");
+  if (!cardBox) return;
+  if (val === "Перевод") {
+    cardBox.style.display = "block";
+  } else {
+    cardBox.style.display = "none";
+  }
+}
+
+function copyCardNumber() {
+  const num = document.getElementById("card-num-text").innerText;
+  navigator.clipboard.writeText(num).then(() => {
+    alert("Номер скопирован! / Համարը պատճենված է:");
+  });
+}
 /* ================= PATHS ================= */
 const BASE_PATH = new URL("./", location.href).pathname;
 
