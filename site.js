@@ -84,17 +84,10 @@ window.goHome = openShops;
 window.goBack = goBack;
 window.openShops = openShops;
 const THEME_KEY = "meronq_theme_v1";
-
-function applySavedTheme() {
-  const saved = localStorage.getItem(THEME_KEY);
-  if (saved === "light") document.body.classList.add("light-theme");
-}
-
 window.toggleTheme = () => {
   document.body.classList.toggle("light-theme");
   localStorage.setItem(THEME_KEY, document.body.classList.contains("light-theme") ? "light" : "dark");
 };
-
 /* ================= CATEGORY ICONS ================= */
 const CATEGORY_ICONS = {
   "Шаурма": "🥙",
@@ -216,6 +209,25 @@ function showCategories(storeId) {
   const cats = Object.keys(menus[storeId]?.categories || {}).sort();
   catList.innerHTML = "";
 
+  // Favorites shortcut
+  const favs = getFavorites(storeId);
+  if (favs.length) {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.style.textAlign = "left";
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-size:28px;line-height:1">⭐</div>
+        <div style="flex:1">
+          <div style="font-weight:700">Избранное</div>
+          <div style="margin-top:6px;font-size:12px;color:var(--text-muted)">Товаров: ${favs.length}</div>
+        </div>
+      </div>
+    `;
+    card.onclick = () => showFavorites(storeId);
+    catList.appendChild(card);
+  }
+
   if (!cats.length) {
     productsBox.innerHTML = `<div class="loading" style="color:#ff6b6b;">Меню пустое или не распознано</div>`;
     return;
@@ -241,6 +253,25 @@ function showCategories(storeId) {
   });
 
   scrollTo(0, 0);
+}
+
+function showFavorites(storeId) {
+  currentCategory = "Избранное";
+  const productsBox = $("store-products");
+  const catBlock = $("categories-block");
+  if (!productsBox) return;
+  catBlock?.classList.add("hidden");
+  const favs = getFavorites(storeId);
+  const allCats = menus[storeId]?.categories || {};
+  const items = [];
+  for (const c of Object.keys(allCats)) {
+    for (const p of (allCats[c] || [])) {
+      if (favs.includes(p.name)) items.push(p);
+    }
+  }
+  currentCategoryItems = items.slice();
+  renderCategoryList(storeId, "⭐ Избранное", items);
+  scrollTo(0,0);
 }
 
 function showCategoryProducts(storeId, category) {
@@ -347,6 +378,7 @@ function renderCategoryList(storeId, category, items) {
         <h4>${escapeHtml(p.name)}</h4>
         <p>${escapeHtml(p.desc || "")}${p.desc ? " • " : ""}${amd(p.price)}</p>
       </div>
+      <button onclick="toggleFavorite('${storeId}','${safeName}')" title="Избранное" style="border:none;background:transparent;font-size:18px;cursor:pointer;opacity:.9;margin-right:6px;">${isFavorite(storeId, p.name) ? "⭐" : "☆"}</button>
       <div class="qty-controls">
         <button onclick="changeQty('${storeId}','${safeName}',-1,'${qtyId}')">−</button>
         <span class="qty-number" id="${qtyId}">${getQty(storeId, p.name)}</span>
@@ -425,6 +457,39 @@ function filterCategories(q) {
 }
 
 window.applySearch = applySearch;
+
+
+/* ================= FAVORITES ================= */
+const LS_FAV_KEY = "meronq_favorites_v1"; // {storeId: [productName,...]}
+
+function getFavorites(storeId) {
+  const all = safeParse(localStorage.getItem(LS_FAV_KEY), {});
+  const list = all?.[storeId];
+  return Array.isArray(list) ? list : [];
+}
+
+function isFavorite(storeId, name) {
+  return getFavorites(storeId).includes(name);
+}
+
+function toggleFavorite(storeId, name) {
+  const all = safeParse(localStorage.getItem(LS_FAV_KEY), {});
+  const list = Array.isArray(all?.[storeId]) ? all[storeId] : [];
+  const idx = list.indexOf(name);
+  if (idx >= 0) list.splice(idx, 1);
+  else list.unshift(name);
+
+  all[storeId] = list.slice(0, 80);
+  localStorage.setItem(LS_FAV_KEY, JSON.stringify(all));
+
+  // re-render current view if inside products
+  if (currentStoreId === storeId && currentCategory) {
+    applySearch();
+  } else if (currentStoreId === storeId && !currentCategory) {
+    showCategories(storeId);
+  }
+}
+window.toggleFavorite = toggleFavorite;
 
 /* ================= CART ================= */
 function getQty(storeId, name) {
@@ -520,6 +585,11 @@ function updateCart() {
 }
 
 /* ================= ORDERS ================= */
+function showOrderMsg(text, type) {
+  // Minimal, safe UI message. If you later add a banner element, we can render it there.
+  alert(String(text || ""));
+}
+
 function buildOrderPayload() {
   const name = ($("name")?.value || "").trim();
   const phone = ($("phone")?.value || "").trim();
@@ -610,26 +680,6 @@ function fillOrderForm(h) {
     const el = document.getElementById(id);
     if (el && val != null) el.value = val;
   };
-   
-function restoreCartFromHistory(h) {
-  const products = Array.isArray(h?.products) ? h.products : [];
-  const newCart = {};
-
-  for (const p of products) {
-    const sid = p.storeKey || p.storeId || p.store || null;
-    const name = p.name || "";
-    const qty = Number(p.quantity || 0);
-    const price = Number(p.unitPrice || p.price || 0);
-
-    if (!sid || !name || qty <= 0) continue;
-
-    newCart[sid] ||= {};
-    newCart[sid][name] = { q: qty, p: price };
-  }
-
-  cart = newCart;      // ✅ заменяем текущую корзину
-  updateCart();        // ✅ пересчёт итогов
-}
 
   setVal("name", c.name);
   setVal("phone", c.phone);
@@ -664,20 +714,14 @@ function useHistoryOrder(index) {
   const h = history[index];
   if (!h) return;
 
-  // ✅ 1) восстановить корзину из истории
+  // ✅ repeat: restore cart + fill delivery form
   restoreCartFromHistory(h);
-
-  // ✅ 2) заполнить форму доставки/оплаты
   fillOrderForm(h);
 
-  // ✅ 3) закрыть историю и показать корзину
   closeOrderHistory();
   document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
-
-  // ✅ если оплата "Перевод" — показать карту
   if (typeof refreshPaymentUI === "function") refreshPaymentUI();
 }
-
 
 
 function showOrderHistory() {
@@ -739,12 +783,18 @@ function showOrderHistory() {
           </div>
 
           <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px">
-            <button onclick="useHistoryOrder(${idx})" style="
+            <button onclick="useHistoryFillForm(${idx})" style="
               padding:9px 12px;border-radius:999px;
               border:1px solid var(--border-glass);
               background:var(--bg-glass); color:var(--text-main);
               cursor:pointer;font-weight:600
-            ">Заполнить форму</button>
+            ">📝 Заполнить форму</button>
+            <button onclick="useHistoryOrder(${idx})" style="
+              padding:9px 14px;border-radius:999px;
+              border:1px solid var(--border-glass);
+              background:var(--accent-green); color:white;
+              cursor:pointer;font-weight:700
+            ">🔁 Повторить заказ</button>
           </div>
         </div>
       `;
@@ -752,6 +802,38 @@ function showOrderHistory() {
   }
 
   modal.classList.remove("hidden");
+}
+
+
+function restoreCartFromHistory(h) {
+  const products = Array.isArray(h?.products) ? h.products : [];
+  const newCart = {};
+
+  for (const p of products) {
+    const sid = p.storeKey || p.storeId || p.store || null;
+    const name = p.name || "";
+    const qty = Number(p.quantity || 0);
+    const price = Number(p.unitPrice || p.price || 0);
+
+    if (!sid || !name || qty <= 0) continue;
+
+    newCart[sid] ||= {};
+    newCart[sid][name] = { q: qty, p: price };
+  }
+
+  cart = newCart;
+  updateCart();
+}
+
+function useHistoryFillForm(index) {
+  const history = getHistory();
+  const h = history[index];
+  if (!h) return;
+
+  fillOrderForm(h);
+  closeOrderHistory();
+  document.getElementById("cart-page")?.scrollIntoView({ behavior: "smooth" });
+  if (typeof refreshPaymentUI === "function") refreshPaymentUI();
 }
 
 window.showOrderHistory = showOrderHistory;
@@ -787,7 +869,10 @@ async function placeOrder() {
 
     saveOrderToLocal(built.payload, j);
 
-    alert("✅ Заказ отправлен!");
+    showOrderMsg("✅ Заказ отправлен! Мы покажем статус заказа.", "success");
+    // show status modal
+    try { showStatusModal(j.orderId || j.id || "", built.payload?.name || ""); } catch {}
+
     cart = {};
     updateCart();
 
@@ -891,6 +976,212 @@ async function copyCardNumber() {
   }
 }
 
+/* ================= MULTILANG (SAFE, NO BREAK UI) ================= */
+// Переводим только конкретные элементы, не трогаем товары/цены.
+const LANG_KEY = "meronq_lang_v1";
+const SUPPORTED_LANGS = ["hy", "ru", "en"];
+
+const I18N = {
+  ru: {
+    search: "Поиск...",
+    shops: "Магазины",
+    cart: "Корзина",
+    history: "История заказов",
+    district_choose: "Выберите район",
+    comment: "Комментарий к заказу",
+    send: "📲 Отправить заказ",
+    back: "← Назад",
+    empty_history: "История пуста",
+    fill_form: "Заполнить форму",
+    copy: "📋 Copy",
+    cash: "💵 Наличные курьеру",
+    transfer: "💳 Перевод на карту (Fast Bank)",
+    card_title: "Номер карты:",
+    recipient: "Получатель:",
+  },
+  hy: {
+    search: "Որոնել…",
+    shops: "Խանութներ",
+    cart: "Զամբյուղ",
+    history: "Պատվերների պատմություն",
+    district_choose: "Ընտրեք շրջանը",
+    comment: "Մեկնաբանություն",
+    send: "📲 Ուղարկել պատվերը",
+    back: "← Հետ",
+    empty_history: "Պատմությունը դատարկ է",
+    fill_form: "Լրացնել ձևը",
+    copy: "📋 Պատճենել",
+    cash: "💵 Կանխիկ курьерին",
+    transfer: "💳 Փոխանցում քարտին (Fast Bank)",
+    card_title: "Քարտի համարը․",
+    recipient: "Ստացող․",
+  },
+  en: {
+    search: "Search…",
+    shops: "Stores",
+    cart: "Cart",
+    history: "Order history",
+    district_choose: "Choose district",
+    comment: "Comment",
+    send: "📲 Place order",
+    back: "← Back",
+    empty_history: "History is empty",
+    fill_form: "Fill the form",
+    copy: "📋 Copy",
+    cash: "💵 Cash to courier",
+    transfer: "💳 Card transfer (Fast Bank)",
+    card_title: "Card number:",
+    recipient: "Recipient:",
+  },
+};
+
+function getSavedLang() {
+  const saved = (localStorage.getItem(LANG_KEY) || "").trim();
+  if (SUPPORTED_LANGS.includes(saved)) return saved;
+
+  const nav = (navigator.language || "").toLowerCase();
+  if (nav.startsWith("hy")) return "hy";
+  if (nav.startsWith("ru")) return "ru";
+  return "hy"; // по умолчанию ARM
+}
+
+function applyLang(lang) {
+  if (!SUPPORTED_LANGS.includes(lang)) return;
+  localStorage.setItem(LANG_KEY, lang);
+
+  const t = I18N[lang] || I18N.hy;
+
+  // search placeholder
+  const s = document.getElementById("searchInput");
+  if (s) s.placeholder = t.search;
+
+  // comment placeholder
+  const c = document.getElementById("comment");
+  if (c && c.getAttribute("placeholder")) c.setAttribute("placeholder", t.comment);
+
+  // district first option text
+  const d = document.getElementById("district");
+  if (d && d.options && d.options[0]) d.options[0].textContent = t.district_choose;
+
+  // payment option texts (values оставляем как есть!)
+  const p = document.getElementById("payment");
+  if (p && p.options && p.options.length >= 2) {
+    p.options[0].textContent = t.cash;
+    p.options[1].textContent = t.transfer;
+  }
+
+  // send button text (только если кнопка действительно "Отправить заказ")
+  const sendBtn = document.querySelector(".order-form button[onclick*='placeOrder']");
+  if (sendBtn && !sendBtn.disabled) sendBtn.textContent = t.send;
+
+  // back button (если есть обычная кнопка с текстом)
+  const backBtn = document.querySelector("button[onclick*='goBack']");
+  if (backBtn) backBtn.textContent = t.back;
+
+  // history modal title (если есть отдельный заголовок — пропускаем, иначе не ломаем)
+  // кнопка "Заполнить форму" меняется внутри рендера — оставим как было, чтобы не менять шаблон
+
+  // copy button label
+  const copyBtn = document.getElementById("copy-card-btn");
+  if (copyBtn) copyBtn.textContent = t.copy;
+}
+
+function initLangSwitch() {
+  const sw = document.getElementById("lang-switch");
+  if (!sw) return;
+
+  sw.addEventListener("click", (e) => {
+    const b = e.target?.closest?.("button[data-lang]");
+    if (!b) return;
+    applyLang(b.getAttribute("data-lang"));
+    refreshPaymentUI();
+  });
+}
+
+
+/* ================= ORDER STATUS (SITE) ================= */
+const STATUS_LABEL_SITE = {
+  new: "🆕 Новый заказ",
+  payment_confirmed: "✅ Оплата подтверждена",
+  preparing: "🧺 Собираем заказ",
+  assembled: "📦 Заказ собран",
+  picked: "🛵 Курьер забрал заказ",
+  on_the_way: "🚗 В пути",
+  delivered: "🎉 Доставлено",
+};
+
+let __statusTimer = null;
+
+function showStatusModal(orderId, customerName) {
+  const modal = document.getElementById("status-modal");
+  if (!modal) return;
+
+  const shortNo = String(orderId || "").slice(-4).toUpperCase();
+  const title = document.getElementById("status-order-title");
+  const sub = document.getElementById("status-order-sub");
+
+  if (title) title.textContent = `Заказ №${shortNo}`;
+  if (sub) sub.textContent = customerName ? `Клиент: ${customerName}` : "";
+
+  modal.classList.remove("hidden");
+  startStatusPolling(orderId);
+}
+
+function closeStatusModal() {
+  const modal = document.getElementById("status-modal");
+  if (modal) modal.classList.add("hidden");
+  if (__statusTimer) clearInterval(__statusTimer);
+  __statusTimer = null;
+}
+
+async function fetchOrderStatus(orderId) {
+  const u = new URL(WORKER_URL.replace(/\/orders$/, "/order-status"), location.origin);
+  u.searchParams.set("id", orderId);
+
+  const r = await fetch(u.toString(), { method: "GET", cache: "no-store" });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+  return j;
+}
+
+function renderOrderStatus(s) {
+  const labelEl = document.getElementById("status-label");
+  const updEl = document.getElementById("status-updated");
+
+  const label = STATUS_LABEL_SITE[s.status] || s.status;
+  if (labelEl) labelEl.textContent = label;
+
+  const t = s.updatedAt ? new Date(s.updatedAt) : null;
+  const when = t && !isNaN(t.getTime()) ? t.toLocaleString() : (s.updatedAt || "");
+  const courier = s.courierName ? ` • Курьер: ${s.courierName}` : "";
+  if (updEl) updEl.textContent = (when ? `Обновлено: ${when}` : "") + courier;
+}
+
+function startStatusPolling(orderId) {
+  if (__statusTimer) clearInterval(__statusTimer);
+  __statusTimer = null;
+
+  const tick = async () => {
+    try {
+      const s = await fetchOrderStatus(orderId);
+      renderOrderStatus(s);
+      if (s.status === "delivered") {
+        // stop polling after delivered
+        if (__statusTimer) clearInterval(__statusTimer);
+        __statusTimer = null;
+      }
+    } catch (e) {
+      // ignore (site can be offline)
+    }
+  };
+
+  tick();
+  __statusTimer = setInterval(tick, 12000);
+}
+
+window.showStatusModal = showStatusModal;
+window.closeStatusModal = closeStatusModal;
+
 /* ================= INIT ================= */
 document.addEventListener("DOMContentLoaded", () => {
   showHome();
@@ -901,11 +1192,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // payment toggle + copy
   document.getElementById("payment")?.addEventListener("change", () => {
-  applySavedTheme();
     refreshPaymentUI();
     updateCart();
   });
   refreshPaymentUI();
 
   document.getElementById("copy-card-btn")?.addEventListener("click", copyCardNumber);
-});/* ================= expose search and history already exposed above ================= */
+
+  // language
+  initLangSwitch();
+  applyLang(getSavedLang());
+});
+
+/* ================= expose search and history already exposed above ================= */
